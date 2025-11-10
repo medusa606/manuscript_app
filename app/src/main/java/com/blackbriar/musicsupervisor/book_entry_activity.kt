@@ -52,6 +52,49 @@ class EntryActivity : AppCompatActivity() {
     private val canvasAppId = "manuscript"
     private var userId: String = ""
 
+    private suspend fun analyzeEmotion(blurb: String): Map<String, Double> {
+        val apiUrl = "https://emotion-api-bst1.onrender.com/analyze"
+        val url = URL(apiUrl)
+
+        val connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.doOutput = true
+
+        // Prepare the JSON payload
+        val jsonInput = JSONObject()
+        // TODO might need to sanitise string, remove /cr etc
+        jsonInput.put("text", blurb)
+
+        // Send the request
+        connection.outputStream.use { os ->
+            val input = jsonInput.toString().toByteArray(Charsets.UTF_8)
+            os.write(input, 0, input.size)
+        }
+
+        // Get the response
+        val responseCode = connection.responseCode
+        if (responseCode != HttpURLConnection.HTTP_OK) {
+            val errorText = connection.errorStream?.bufferedReader()?.readText()
+            throw Exception("Emotion API error $responseCode: $errorText")
+        }
+
+        val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+        val jsonResponse = JSONObject(responseBody)
+
+        val emotionsJson = jsonResponse.getJSONObject("emotions")
+        val emotions = mutableMapOf<String, Double>()
+
+        val keys = emotionsJson.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            emotions[key] = emotionsJson.getDouble(key)
+        }
+
+        return emotions
+    }
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.entry_activity)
@@ -117,6 +160,14 @@ class EntryActivity : AppCompatActivity() {
                 fetchedCoverUrl = details.coverUrl
 
                 textViewBlurb.text = if (fetchedBlurb.isNotEmpty()) fetchedBlurb else "No blurb found."
+
+                // Read emotions in blurb
+                if (fetchedBlurb.isNotEmpty()) {
+                    val emotions = withContext(Dispatchers.IO) { analyzeEmotion(fetchedBlurb) }
+                    val formatted = emotions.entries.joinToString("\n") { (k, v) -> "$k: ${(v * 100).toInt()}%" }
+                    textViewBlurb.append("\n\nEmotional profile:\n$formatted")
+                }
+
 
                 if (fetchedCoverUrl.isNotEmpty()) {
                     imageViewCover.visibility = View.VISIBLE
