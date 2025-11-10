@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="32dp"
+        android:background="@color/white">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Book Details Entry"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="32dp"
+            android:textColor="@color/black"/>
+
+        <!-- Author Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Author"
+            android:layout_marginBottom="16dp"
+            app:hintTextColor="@color/purple_500"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_text_author"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPersonName"
+                android:maxLines="1"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Book Title Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Book Title"
+            android:layout_marginBottom="16dp"
+            app:hintTextColor="@color/purple_500"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_text_book_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapWords"
+                android:maxLines="1"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Action Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="32dp">
+
+            <!-- NEW: Fetch Details Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_fetch_details"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Fetch Details"
+                android:textSize="14sp"
+                android:paddingVertical="12dp"
+                android:layout_marginEnd="8dp"
+                app:cornerRadius="8dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+
+            <!-- Original: Save Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_ok"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Save"
+                android:textSize="14sp"
+                android:paddingVertical="12dp"
+                android:layout_marginStart="8dp"
+                app:cornerRadius="8dp"/>
+        </LinearLayout>
+
+        <!-- NEW: Book Cover Image -->
+        <ImageView
+            android:id="@+id/image_view_cover"
+            android:layout_width="150dp"
+            android:layout_height="200dp"
+            android:layout_marginBottom="16dp"
+            android:scaleType="centerCrop"
+            android:background="@color/purple_200"
+            android:contentDescription="Book Cover Image"
+            android:visibility="gone"/>
+
+<!--        <com.google.android.material.imageview.ShapeableImageView-->
+<!--            android:id="@+id/image_view_cover"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:adjustViewBounds="true"-->
+<!--            android:scaleType="centerCrop"-->
+<!--            android:contentDescription="@string/book_cover"-->
+<!--            style="@style/ShapeAppearance.Material3.Corner.None"-->
+<!--            app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Material3.Corner.Large"-->
+<!--            app:strokeColor="?attr/colorOutline"-->
+<!--            app:strokeWidth="1dp" />-->
+
+        <!--            android:contentDescription="Book Cover Image"/>-->
+
+        <!-- NEW: Description/Blurb -->
+        <TextView
+            android:id="@+id/text_view_blurb"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="16dp"
+            android:text="Enter book details and click 'Fetch Details' to retrieve the blurb."
+            android:background="#F5F5F5"
+            android:textColor="@color/black"
+            android:lineSpacingExtra="4dp"
+            android:textSize="14sp"/>
+
+    </LinearLayout>
+</ScrollView>

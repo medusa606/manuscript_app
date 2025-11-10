@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Manuscript</string>
+    <string name="book_cover">Book cover image</string>
+</resources>
