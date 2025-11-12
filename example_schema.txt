@@ -1,0 +1,21 @@
+{
+  "title": "Rendezvous with Rama",
+  "author": "Arthur C. Clarke",
+  "author_lowercase": "arthur c. clarke",
+  "year_published": 1973,
+  "genres": ["Science Fiction", "Hard Science Fiction", "First Contact"],
+  "themes": ["Exploration", "Alien Technology", "Scientific Inquiry", "Existentialism"],
+  "motif": "The recurring pattern of three, emphasizing the Ramans' meticulous design and order, which contrasts with human uncertainty. Other key motifs include the mystery of the alien civilization, its grand scale and indifference to humans, and the contrast between advancing human curiosity and the overwhelming, unknown nature of the universe.",
+  "category": "Adult Science Fiction Novel",
+  "setting": {
+    "time_period": "22nd Century (2130 AD)",
+    "location": "Solar System, primarily aboard Rama"
+  },
+  "tags": ["Hard Sci-Fi", "Space Exploration", "Alien Artifact", "Classic SF"],
+  "blurb": "When a mysterious cylindrical object enters the Solar System, humanity dispatches an exploration team to investigate. What they discover within is beyond imagination—a vast, silent world drifting through the stars.",
+  "review": "Arthur C. Clarke’s 'Rendezvous with Rama' exemplifies hard science fiction at its best. It replaces melodrama with awe and curiosity, focusing on exploration, mystery, and humanity’s cosmic insignificance. Its meticulous detail and restraint make it timeless.",
+  "cover_image_url": "https://your-storage-link.com/rendezvous_with_rama.jpg",
+  "created_at": "2025-11-12T00:00:00Z",
+  "updated_at": "2025-11-12T00:00:00Z"
+}
+
