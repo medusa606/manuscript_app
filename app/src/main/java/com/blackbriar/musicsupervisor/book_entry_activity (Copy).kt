@@ -22,11 +22,18 @@ import org.json.JSONObject
 import coil.load
 import com.blackbriar.musicsupervisor.R
 
+//for rounding coil image corners
+import com.google.android.material.shape.MaterialShapeDrawable
+import coil.transform.RoundedCornersTransformation
+import com.google.android.material.shape.MaterialShapeUtils
+
 class EntryActivity : AppCompatActivity() {
 
+    // Firestore and Auth instances
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseFirestore
 
+    // View references
     private lateinit var editTextAuthor: TextInputEditText
     private lateinit var editTextBookTitle: TextInputEditText
     private lateinit var buttonSave: MaterialButton
@@ -34,22 +41,72 @@ class EntryActivity : AppCompatActivity() {
     private lateinit var imageViewCover: ImageView
     private lateinit var textViewBlurb: TextView
 
+    // Data holders for fetched data
     private var fetchedBlurb: String = ""
     private var fetchedCoverUrl: String = ""
 
+    // Coroutine scope for network operations
     private val scope = CoroutineScope(Dispatchers.Main + Job())
+
+    // We use this placeholder for the secure Firestore path structure
     private val canvasAppId = "manuscript"
     private var userId: String = ""
+
+    private suspend fun analyzeEmotion(blurb: String): Map<String, Double> {
+        val apiUrl = "https://emotion-api-bst1.onrender.com/analyze"
+        val url = URL(apiUrl)
+
+        val connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.doOutput = true
+
+        // Prepare the JSON payload
+        val jsonInput = JSONObject()
+        // TODO might need to sanitise string, remove /cr etc
+        jsonInput.put("text", blurb)
+
+        // Send the request
+        connection.outputStream.use { os ->
+            val input = jsonInput.toString().toByteArray(Charsets.UTF_8)
+            os.write(input, 0, input.size)
+        }
+
+        // Get the response
+        val responseCode = connection.responseCode
+        if (responseCode != HttpURLConnection.HTTP_OK) {
+            val errorText = connection.errorStream?.bufferedReader()?.readText()
+            throw Exception("Emotion API error $responseCode: $errorText")
+        }
+
+        val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+        val jsonResponse = JSONObject(responseBody)
+
+        val emotionsJson = jsonResponse.getJSONObject("emotions")
+        val emotions = mutableMapOf<String, Double>()
+
+        val keys = emotionsJson.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            emotions[key] = emotionsJson.getDouble(key)
+        }
+
+        return emotions
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.entry_activity)
 
+        // Initialize Firebase instances (using KTX)
         auth = Firebase.auth
         db = Firebase.firestore
 
+        // Get current user ID (using UUID for anonymous/unauthenticated users)
         userId = auth.currentUser?.uid ?: UUID.randomUUID().toString()
 
+        // Link views from XML (do this before using them)
         editTextAuthor = findViewById(R.id.edit_text_author)
         editTextBookTitle = findViewById(R.id.edit_text_book_title)
         buttonSave = findViewById(R.id.button_ok)
@@ -57,6 +114,7 @@ class EntryActivity : AppCompatActivity() {
         imageViewCover = findViewById(R.id.image_view_cover)
         textViewBlurb = findViewById(R.id.text_view_blurb)
 
+        // Set up click listeners
         buttonFetch.setOnClickListener {
             fetchBookDetails()
         }
@@ -65,11 +123,13 @@ class EntryActivity : AppCompatActivity() {
             saveBookEntry()
         }
 
+        // Initial state
         buttonSave.isEnabled = false
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        // Cancel all coroutines when the activity is destroyed
         scope.cancel()
     }
 
@@ -77,51 +137,87 @@ class EntryActivity : AppCompatActivity() {
         val author = editTextAuthor.text.toString().trim()
         val title = editTextBookTitle.text.toString().trim()
 
+        // Build display
+        textViewBlurb.text = buildString {
+            append(if (details.blurb.isNotEmpty()) details.blurb else "No blurb found.")
+
+            if (details.categories.isNotEmpty())
+                append("\n\n📚 Google Categories: ${details.categories.joinToString(", ")}")
+
+            if (details.subjects.isNotEmpty())
+                append("\n\n📖 Subjects: ${details.subjects.joinToString(", ")}")
+
+            if (details.genres.isNotEmpty())
+                append("\n\n🏷️ Genres: ${details.genres.joinToString(", ")}")
+        }
+
+
         if (author.isEmpty() || title.isEmpty()) {
             Toast.makeText(this, "Please enter both author and book title.", Toast.LENGTH_SHORT).show()
             return
         }
 
+        // Reset state and show loading
         textViewBlurb.text = "Fetching book details..."
         imageViewCover.visibility = View.GONE
         buttonSave.isEnabled = false
         buttonFetch.isEnabled = false
 
+
+        // Start coroutine for network operation
         scope.launch {
             try {
-                // Fetch book details (Google + Open Library)
-                val details = withContext(Dispatchers.IO) { performBookDataFetch(title, author) }
 
+//                val (subjects, genres) = withContext(Dispatchers.IO) { fetchOpenLibraryData(title, author) }
+                val details = withContext(Dispatchers.IO) {
+                    performBookDataFetch(title, author)
+                }
+
+                // Update UI on the main thread
                 fetchedBlurb = details.blurb
                 fetchedCoverUrl = details.coverUrl
 
-                // Build display
+//                textViewBlurb.text = if (fetchedBlurb.isNotEmpty()) fetchedBlurb else "No blurb found."
+//                textViewBlurb.text = buildString {
+//                    append(if (fetchedBlurb.isNotEmpty()) fetchedBlurb else "No blurb found.")
+//                    if (details.categories.isNotEmpty()) {
+//                        append("\n\n📚 Categories: ${details.categories.joinToString(", ")}")
+//                    }
+//                }
                 textViewBlurb.text = buildString {
-                    append(if (details.blurb.isNotEmpty()) details.blurb else "No blurb found.")
+                    append(if (fetchedBlurb.isNotEmpty()) fetchedBlurb else "No blurb found.")
 
-                    if (details.categories.isNotEmpty())
+                    if (details.categories.isNotEmpty()) {
                         append("\n\n📚 Google Categories: ${details.categories.joinToString(", ")}")
+                    }
 
-                    if (details.subjects.isNotEmpty())
-                        append("\n\n📖 Subjects: ${details.subjects.joinToString(", ")}")
+                    if (subjects.isNotEmpty()) {
+                        append("\n\n📖 OPEN Subjects: ${subjects.joinToString(", ")}")
+                    }
 
-                    if (details.genres.isNotEmpty())
-                        append("\n\n🏷️ Genres: ${details.genres.joinToString(", ")}")
+                    if (genres.isNotEmpty()) {
+                        append("\n\n🏷️ OPEN Genres: ${genres.joinToString(", ")}")
+                    }
                 }
 
-                // Analyze emotions
+                // Read emotions in blurb
                 if (fetchedBlurb.isNotEmpty()) {
                     val emotions = withContext(Dispatchers.IO) { analyzeEmotion(fetchedBlurb) }
                     val formatted = emotions.entries.joinToString("\n") { (k, v) -> "$k: ${(v * 100).toInt()}%" }
                     textViewBlurb.append("\n\nEmotional profile:\n$formatted")
                 }
 
-                // Load cover image
+
                 if (fetchedCoverUrl.isNotEmpty()) {
                     imageViewCover.visibility = View.VISIBLE
+
+                    Log.d("BookCover", "Cover URL: $fetchedCoverUrl")
+
+
                     imageViewCover.load(fetchedCoverUrl) {
                         crossfade(true)
-                        crossfade(500)
+                        crossfade(500) // duration in ms
+//                        transformations(RoundedCornersTransformation(cornerRadiusPx))
                         placeholder(R.drawable.ic_launcher_background)
                         error(R.drawable.ic_launcher_background)
                     }
@@ -143,13 +239,55 @@ class EntryActivity : AppCompatActivity() {
         }
     }
 
+//     Open Library API call for genre and/or subject
+//    private fun fetchOpenLibraryData(title: String, author: String): Pair<List<String>, List<String>> {
+//        val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
+//        val encodedAuthor = java.net.URLEncoder.encode(author, "UTF-8")
+//        val apiUrl = "https://openlibrary.org/search.json?title=$encodedTitle&author=$encodedAuthor&limit=1"
+//
+//        val url = URL(apiUrl)
+//        val connection = url.openConnection() as HttpURLConnection
+//        connection.requestMethod = "GET"
+//        connection.connectTimeout = 5000
+//
+//        val responseCode = connection.responseCode
+//        if (responseCode != HttpURLConnection.HTTP_OK) {
+//            throw Exception("Open Library API Error $responseCode: ${connection.errorStream?.bufferedReader()?.readText()}")
+//        }
+//
+//        val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+//        val jsonResponse = JSONObject(responseBody)
+//
+//        var subjects: List<String> = emptyList()
+//        var genres: List<String> = emptyList()
+//
+//        if (jsonResponse.has("docs") && jsonResponse.getJSONArray("docs").length() > 0) {
+//            val doc = jsonResponse.getJSONArray("docs").getJSONObject(0)
+//
+//            if (doc.has("subject")) {
+//                val jsonArray = doc.getJSONArray("subject")
+//                subjects = (0 until jsonArray.length()).map { i -> jsonArray.getString(i) }
+//            }
+//
+//            if (doc.has("genre")) {
+//                val jsonArray = doc.getJSONArray("genre")
+//                genres = (0 until jsonArray.length()).map { i -> jsonArray.getString(i) }
+//            }
+//        }
+//
+//        return Pair(subjects, genres)
+//    }
+
+
     private fun performBookDataFetch(title: String, author: String): BookDetails {
+        // 1️⃣ Encode title and author
         val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
         val encodedAuthor = java.net.URLEncoder.encode(author, "UTF-8")
 
-        // --- Google Books API ---
+        // 2️⃣ Google Books API
         val googleApiUrl =
             "https://www.googleapis.com/books/v1/volumes?q=intitle:$encodedTitle+inauthor:$encodedAuthor&maxResults=1&fields=items(volumeInfo(description,imageLinks,categories))"
+
         val googleUrl = URL(googleApiUrl)
         val googleConn = googleUrl.openConnection() as HttpURLConnection
         googleConn.requestMethod = "GET"
@@ -176,17 +314,20 @@ class EntryActivity : AppCompatActivity() {
 
                 if (volumeInfo.has("imageLinks")) {
                     val imageLinks = volumeInfo.getJSONObject("imageLinks")
-                    coverUrl = imageLinks.optString("thumbnail", "").replace("http://", "https://")
+                    coverUrl = imageLinks.optString("thumbnail", "")
+                        .replace("http://", "https://")
                     if (coverUrl.isEmpty()) {
-                        coverUrl = imageLinks.optString("smallThumbnail", "").replace("http://", "https://")
+                        coverUrl = imageLinks.optString("smallThumbnail", "")
+                            .replace("http://", "https://")
                     }
                 }
             }
         }
 
-        // --- Open Library API ---
+        // 3️⃣ Open Library API
         val openLibApiUrl =
             "https://openlibrary.org/search.json?title=$encodedTitle&author=$encodedAuthor&limit=1"
+
         val openUrl = URL(openLibApiUrl)
         val openConn = openUrl.openConnection() as HttpURLConnection
         openConn.requestMethod = "GET"
@@ -223,41 +364,7 @@ class EntryActivity : AppCompatActivity() {
         )
     }
 
-    private suspend fun analyzeEmotion(blurb: String): Map<String, Double> {
-        val apiUrl = "https://emotion-api-bst1.onrender.com/analyze"
-        val url = URL(apiUrl)
-        val connection = url.openConnection() as HttpURLConnection
-        connection.requestMethod = "POST"
-        connection.setRequestProperty("Content-Type", "application/json")
-        connection.doOutput = true
 
-        val jsonInput = JSONObject()
-        jsonInput.put("text", blurb)
-
-        connection.outputStream.use { os ->
-            val input = jsonInput.toString().toByteArray(Charsets.UTF_8)
-            os.write(input, 0, input.size)
-        }
-
-        val responseCode = connection.responseCode
-        if (responseCode != HttpURLConnection.HTTP_OK) {
-            val errorText = connection.errorStream?.bufferedReader()?.readText()
-            throw Exception("Emotion API error $responseCode: $errorText")
-        }
-
-        val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
-        val jsonResponse = JSONObject(responseBody)
-
-        val emotionsJson = jsonResponse.getJSONObject("emotions")
-        val emotions = mutableMapOf<String, Double>()
-        val keys = emotionsJson.keys()
-        while (keys.hasNext()) {
-            val key = keys.next()
-            emotions[key] = emotionsJson.getDouble(key)
-        }
-
-        return emotions
-    }
 
     private fun saveBookEntry() {
         val author = editTextAuthor.text.toString().trim()
@@ -268,6 +375,7 @@ class EntryActivity : AppCompatActivity() {
             return
         }
 
+        // Create the book data map
         val bookData = hashMapOf(
             "author" to author,
             "title" to title,
@@ -276,6 +384,7 @@ class EntryActivity : AppCompatActivity() {
             "timestamp" to System.currentTimeMillis()
         )
 
+        // Construct the Firestore collection path
         val collectionPath = "artifacts/$canvasAppId/users/$userId/books"
 
         db.collection(collectionPath)
