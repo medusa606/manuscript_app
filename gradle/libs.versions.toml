@@ -1,6 +1,5 @@
 [versions]
 agp = "8.13.0"
-kotlin = "2.0.21"
 coreKtx = "1.17.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
@@ -10,7 +9,9 @@ activityCompose = "1.11.0"
 composeBom = "2024.09.00"
 firebase-bom = "34.4.0" # Or the latest version
 google-services = "4.4.1"
-coil = "2.6.0"
+coil = "3.3.0"
+room = "2.7.2"
+
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -31,12 +32,14 @@ firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.r
 firebase-common-ktx = { group = "com.google.firebase", name = "firebase-common-ktx" }
 firebase-firestore-ktx = { group = "com.google.firebase", name = "firebase-firestore-ktx" }
 firebase-auth-ktx = { group = "com.google.firebase", name = "firebase-auth-ktx" }
-coil-kt = { group = "io.coil-kt", name = "coil", version.ref = "coil" }
+coil-kt = { group = "io.coil-kt.coil3", name = "coil", version.ref = "coil" }
+room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose-core-android", version.ref = "coil" }
 
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-
+kotlin-android = { id = "org.jetbrains.kotlin.android" }         # no version.ref
 google-services = { id = "com.google.gms.google-services", version.ref = "google-services" }
