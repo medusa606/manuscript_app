@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
     id("com.google.gms.google-services")
+    alias(libs.plugins.kotlin.compose)
 }
 
 
@@ -47,9 +48,6 @@ android {
     }
     buildFeatures {
         compose = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "2.3.0" // match Kotlin plugin version
     }
 }
 
@@ -109,6 +107,7 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
+    implementation("androidx.sqlite:sqlite-bundled:2.6.2") // Or androidx.sqlite:sqlite-framework
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
 }
