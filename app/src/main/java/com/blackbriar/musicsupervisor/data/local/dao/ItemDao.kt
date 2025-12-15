@@ -5,8 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.blackbriar.musicsupervisor.data.local.entity.ItemEntity
-//import com.blackbriar.musicsupervisor.data.local.entity.ItemFtsEntity
-
+import com.blackbriar.musicsupervisor.data.local.entity.AuthorItem
 @Dao
 interface ItemDao {
 
@@ -38,4 +37,23 @@ interface ItemDao {
         LIMIT 50
     """)
     suspend fun searchExact(query: String): List<ItemEntity>
+
+    // search authors with partial name
+    @Query("""
+        SELECT DISTINCT author FROM items_fts
+        WHERE author MATCH :query
+        LIMIT 20
+    """)
+    suspend fun searchAuthors(query: String): List<AuthorItem>
+
+    // Search titles filtered by author name
+    @Query("""
+        SELECT DISTINCT title 
+        FROM items 
+        WHERE title LIKE '%' || :titleQuery || '%' 
+        AND author = :selectedAuthor
+        ORDER BY title ASC
+    """)
+    suspend fun searchTitlesByAuthor(titleQuery: String, selectedAuthor: String): List<String>
+
 }

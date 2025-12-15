@@ -43,4 +43,13 @@ class SearchRepository(private val itemDao: ItemDao) {
     private fun List<ItemEntity>.fuzzySort(query: String): List<ItemEntity> {
         return this.sortedBy { levenshtein(it.title.lowercase(), query.lowercase()) }
     }
+
+    suspend fun searchAuthors(query: String): List<String> {
+        return itemDao.searchAuthors(query).map { it.author }
+    }
+
+    suspend fun searchTitles(titleQuery: String, selectedAuthor: String): List<String> {
+        return itemDao.searchTitlesByAuthor(titleQuery, selectedAuthor)
+    }
+
 }

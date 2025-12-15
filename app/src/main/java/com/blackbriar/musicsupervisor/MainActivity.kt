@@ -18,11 +18,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-//        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-//        window.statusBarColor = Color.WHITE
-//        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
-//        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
-
         val buttonA: Button = findViewById(R.id.buttonA)
         val buttonB: Button = findViewById(R.id.buttonB)
         val buttonC: Button = findViewById(R.id.buttonC)
@@ -34,6 +29,8 @@ class MainActivity : AppCompatActivity() {
 
         buttonB.setOnClickListener {
             // TODO: Add action for button B
+            val intent = Intent(this, EntryActivity::class.java)
+            startActivity(intent)
         }
 
         buttonC.setOnClickListener {
