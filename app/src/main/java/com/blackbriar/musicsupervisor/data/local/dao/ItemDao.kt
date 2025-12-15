@@ -5,7 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.blackbriar.musicsupervisor.data.local.entity.ItemEntity
-import com.blackbriar.musicsupervisor.data.local.entity.ItemFtsEntity
+//import com.blackbriar.musicsupervisor.data.local.entity.ItemFtsEntity
 
 @Dao
 interface ItemDao {
@@ -14,9 +14,9 @@ interface ItemDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(items: List<ItemEntity>)
 
-    // --- FTS table inserts ---
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertFts(items: List<ItemFtsEntity>)
+//    // --- FTS table inserts ---
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+//    suspend fun insertFts(items: List<ItemFtsEntity>)
 
     @Query("SELECT COUNT(*) FROM items")
     suspend fun count(): Int

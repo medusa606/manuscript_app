@@ -6,18 +6,18 @@ import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import coil.load
+import coil3.load
+import coil3.request.crossfade
 import com.blackbriar.musicsupervisor.data.local.db.AppDatabase
-import com.blackbriar.musicsupervisor.data.local.db.RoomImporter
+import com.blackbriar.musicsupervisor.data.local.db.importJsonToRoomWithFts
 import com.blackbriar.musicsupervisor.data.local.repository.SearchRepository
-import com.blackbriar.musicsupervisor.data.local.entity.ItemEntity
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.ktx.Firebase
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
+import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -66,7 +66,7 @@ class EntryActivity : AppCompatActivity() {
 
         // Ensure DB is populated from JSON (optional, one-time)
         lifecycleScope.launch {
-            RoomImporter.importJsonToRoomWithFts(appDatabase, applicationContext)
+            importJsonToRoomWithFts(appDatabase, applicationContext)
         }
 
         // Setup autocomplete for both fields
@@ -123,7 +123,7 @@ class EntryActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        scope.cancel()
+        lifecycleScope.cancel()
     }
 
     private fun fetchBookDetails() {

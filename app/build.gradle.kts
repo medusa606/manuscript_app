@@ -51,9 +51,7 @@ android {
     }
 }
 
-
 dependencies {
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -70,44 +68,27 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     implementation("androidx.appcompat:appcompat:1.6.1")
 
-//    implementation("androidx.core:core-ktx:1.12.0")
-//    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-//    implementation("androidx.activity:activity-compose:1.8.1")
-//
-//    implementation(platform("androidx.compose:compose-bom:2024.04.00")) // Use the BOM for version alignment
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.navigation:navigation-compose:2.7.5") // Check for the latest stable version
 
-//    implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
     implementation(platform(libs.firebase.bom))
-
-    implementation("com.google.firebase:firebase-common")
-    implementation("com.google.firebase:firebase-auth")
-    implementation("com.google.firebase:firebase-firestore")
+    implementation(libs.firebase.common)
+    implementation(libs.firebase.auth.ktx)
+    implementation(libs.firebase.firestore.ktx)
 
     implementation("com.google.android.material:material:1.13.0")
-
-
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-
     implementation(libs.coil.kt)
-
-//    implementation("io.coil-kt:coil:3.2.0")
-    implementation("io.coil-kt.coil3:coil-core-android:3.3.0")
-    implementation("io.coil-kt.coil3:coil-compose-core-android:3.3.0")
-
-
-
+    implementation(libs.coil.compose)
+    implementation(libs.coil.net)
     // for material
     implementation("androidx.constraintlayout:constraintlayout:2.2.1")
     implementation("androidx.constraintlayout:constraintlayout-compose:1.1.1")
-
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation("androidx.sqlite:sqlite-bundled:2.6.2") // Or androidx.sqlite:sqlite-framework
-
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
 }

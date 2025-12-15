@@ -15,5 +15,5 @@ suspend fun importJsonToRoomWithFts(db: AppDatabase, context: Context) {
 
     // Map to FTS entity
     val ftsEntities = entities.map { ItemFtsEntity(title = it.title, author = it.author) }
-    db.itemDao().insertFts(ftsEntities)
+    db.itemDao().insertAll(entities)
 }
