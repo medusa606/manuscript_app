@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import coil3.load
 import coil3.request.crossfade
+import coil3.request.placeholder
 import com.blackbriar.musicsupervisor.data.local.db.AppDatabase
 import com.blackbriar.musicsupervisor.data.local.db.importJsonToRoomWithFts
 import com.blackbriar.musicsupervisor.data.local.repository.SearchRepository
@@ -24,6 +25,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.*
 import org.json.JSONObject
+import android.text.TextWatcher
+import android.text.Editable
 
 class EntryActivity : AppCompatActivity() {
 
@@ -39,6 +42,10 @@ class EntryActivity : AppCompatActivity() {
 
     private var fetchedBlurb: String = ""
     private var fetchedCoverUrl: String = ""
+    private var fetchedThemes: List<String> = emptyList()
+    private var fetchedMotif: List<String> = emptyList()
+    private var fetchedTimePeriod: List<String> = emptyList()
+    private var fetchedLocation: List<String> = emptyList()
 
     private lateinit var appDatabase: AppDatabase
     private lateinit var searchRepository: SearchRepository
@@ -88,37 +95,46 @@ class EntryActivity : AppCompatActivity() {
         editTextAuthor.setAdapter(authorAdapter)
         editTextBookTitle.setAdapter(titleAdapter)
 
-        // Autocomplete for Author
-        editTextAuthor.addTextChangedListener {
-            val query = it.toString()
-            if (query.length >= 2) {
-                lifecycleScope.launch {
-                    val results = searchRepository.search(query)
-                    val authors = results.map { it.author }.distinct()
-                    withContext(Dispatchers.Main) {
-                        authorAdapter.clear()
-                        authorAdapter.addAll(authors)
-                        authorAdapter.notifyDataSetChanged()
-                    }
-                }
-            }
-        }
+        editTextAuthor.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
 
-        // Autocomplete for Title
-        editTextBookTitle.addTextChangedListener {
-            val query = it.toString()
-            if (query.length >= 2) {
-                lifecycleScope.launch {
-                    val results = searchRepository.search(query)
-                    val titles = results.map { it.title }.distinct()
-                    withContext(Dispatchers.Main) {
-                        titleAdapter.clear()
-                        titleAdapter.addAll(titles)
-                        titleAdapter.notifyDataSetChanged()
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val query = s.toString()
+                if (query.length >= 2) {
+                    lifecycleScope.launch {
+                        val results = searchRepository.search(query)
+                        val authors = results.map { it.author }.distinct()
+                        withContext(Dispatchers.Main) {
+                            authorAdapter.clear()
+                            authorAdapter.addAll(authors)
+                            authorAdapter.notifyDataSetChanged()
+                        }
                     }
                 }
             }
-        }
+
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        editTextBookTitle.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val query = s.toString()
+                if (query.length >= 2) {
+                    lifecycleScope.launch {
+                        val results = searchRepository.search(query)
+                        val titles = results.map { it.title }.distinct()
+                        withContext(Dispatchers.Main) {
+                            titleAdapter.clear()
+                            titleAdapter.addAll(titles)
+                            titleAdapter.notifyDataSetChanged()
+                        }
+                    }
+                }
+            }
+
+            override fun afterTextChanged(s: Editable?) {}
+        })
     }
 
     override fun onDestroy() {
@@ -126,9 +142,51 @@ class EntryActivity : AppCompatActivity() {
         lifecycleScope.cancel()
     }
 
-    private fun fetchBookDetails() {
+    suspend fun performBookDataFetch(title: String, author: String): BookDetails {
+        // Use the DAO to do a prefix search (or exact search if you prefer)
+        val items = searchRepository.search("$title $author") // or searchPrefix(title) etc.
+
+        if (items.isEmpty()) {
+            // Return empty BookDetails if nothing found
+            return BookDetails(
+                blurb = "",
+                coverUrl = "",
+                categories = emptyList(),
+                subjects = emptyList(),
+                genres = emptyList(),
+                themes = emptyList(),
+                motif = emptyList(),
+                time_period = emptyList(),
+                location = emptyList()
+            )
+        }
+
+        // Take the first matching item
+        val item = items.first()
+
+        // Helper function to split comma-separated strings into list
+        fun splitToList(str: String): List<String> {
+            return str.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        }
+
+        return BookDetails(
+            blurb = item.blurb,
+            coverUrl = "", // We'll fetch cover separately
+            categories = splitToList(item.category),
+            subjects = splitToList(item.tags),
+            genres = splitToList(item.genres),
+            themes = splitToList(item.themes),
+            motif = splitToList(item.motif),
+            time_period = splitToList(item.time_period),
+            location = splitToList(item.location)
+        )
+    }
+
+
+        private fun fetchBookDetails() {
         val author = editTextAuthor.text.toString().trim()
         val title = editTextBookTitle.text.toString().trim()
+
 
         if (author.isEmpty() || title.isEmpty()) {
             Toast.makeText(this, "Please enter both author and book title.", Toast.LENGTH_SHORT).show()
@@ -142,12 +200,17 @@ class EntryActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val details = withContext(Dispatchers.IO) {
+                val details: BookDetails = withContext(Dispatchers.IO) {
                     performBookDataFetch(title, author)
                 }
 
                 fetchedBlurb = details.blurb
                 fetchedCoverUrl = withContext(Dispatchers.IO) { fetchCoverUrl(title, author) }
+                fetchedThemes = details.themes
+                fetchedMotif = details.motif
+                fetchedTimePeriod = details.time_period
+                fetchedLocation = details.location
+
 
                 // Display blurb & metadata
                 textViewBlurb.text = buildString {
@@ -181,9 +244,15 @@ class EntryActivity : AppCompatActivity() {
                     imageViewCover.load(fetchedCoverUrl) {
                         crossfade(true)
                         crossfade(500)
-                        placeholder(R.drawable.ic_launcher_background)
+                        placeholder(R.drawable.ic_launcher_background) // resource ID is correct
                         error(R.drawable.ic_launcher_background)
                     }
+//                    imageViewCover.load(fetchedCoverUrl) {
+//                        crossfade(true)
+//                        crossfade(500)
+//                        placeholder(R.drawable.ic_launcher_background)
+//                        error(R.drawable.ic_launcher_background)
+//                    }
                 } else {
                     imageViewCover.visibility = View.GONE
                 }

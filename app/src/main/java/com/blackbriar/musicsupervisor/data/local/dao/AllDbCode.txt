@@ -1,0 +1,215 @@
+ItemDao.kt:
+
+package com.blackbriar.musicsupervisor.data.local.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.blackbriar.musicsupervisor.data.local.entity.ItemEntity
+//import com.blackbriar.musicsupervisor.data.local.entity.ItemFtsEntity
+
+@Dao
+interface ItemDao {
+
+    // --- Main table inserts ---
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<ItemEntity>)
+
+//    // --- FTS table inserts ---
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+//    suspend fun insertFts(items: List<ItemFtsEntity>)
+
+    @Query("SELECT COUNT(*) FROM items")
+    suspend fun count(): Int
+
+    // --- Prefix search for autocomplete ---
+    @Query("""
+        SELECT items.* FROM items
+        JOIN items_fts ON items.rowid = items_fts.rowid
+        WHERE items_fts MATCH :query || '*'
+        LIMIT 50
+    """)
+    suspend fun searchPrefix(query: String): List<ItemEntity>
+
+    // --- Optional: Full phrase search ---
+    @Query("""
+        SELECT items.* FROM items
+        JOIN items_fts ON items.rowid = items_fts.rowid
+        WHERE items_fts MATCH :query
+        LIMIT 50
+    """)
+    suspend fun searchExact(query: String): List<ItemEntity>
+}
+
+AppDatabase.kt:
+package com.blackbriar.musicsupervisor.data.local.db
+
+import android.content.Context
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import com.blackbriar.musicsupervisor.data.local.dao.ItemDao
+import com.blackbriar.musicsupervisor.data.local.entity.ItemEntity
+import com.blackbriar.musicsupervisor.data.local.entity.ItemFtsEntity
+
+@Database(
+    entities = [ItemEntity::class, ItemFtsEntity::class],
+    version = 1,
+    exportSchema = false
+)
+abstract class AppDatabase : RoomDatabase() {
+
+    abstract fun itemDao(): ItemDao
+
+    companion object {
+        @Volatile
+        private var INSTANCE: AppDatabase? = null
+
+        fun getInstance(context: Context): AppDatabase {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    "app_database"
+                )
+                    .fallbackToDestructiveMigration(true)
+                    .build()
+                    .also { INSTANCE = it }
+            }
+        }
+    }
+}
+
+JsonImporter.kt:
+
+package com.blackbriar.musicsupervisor.data.local.db
+
+import android.content.Context
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.decodeFromString
+import com.blackbriar.musicsupervisor.data.local.entity.RawItem
+
+class JsonImporter(private val context: Context) {
+
+    fun loadItems(): List<RawItem> {
+        val jsonText = context.assets.open("items.json")
+            .bufferedReader()
+            .use { it.readText() }
+
+        val json = Json { ignoreUnknownKeys = true }
+
+        return json.decodeFromString(jsonText)
+    }
+}
+
+RoomImporter.kt:
+
+package com.blackbriar.musicsupervisor.data.local.db
+
+import android.content.Context
+import com.blackbriar.musicsupervisor.data.local.entity.ItemFtsEntity
+import com.blackbriar.musicsupervisor.data.local.entity.RawItem
+import com.blackbriar.musicsupervisor.data.local.entity.toEntity
+
+suspend fun importJsonToRoomWithFts(db: AppDatabase, context: Context) {
+    val importer = JsonImporter(context)
+    val rawItems: List<RawItem> = importer.loadItems()
+
+    // Map to Room entity
+    val entities = rawItems.map { it.toEntity() }
+    db.itemDao().insertAll(entities)
+
+    // Map to FTS entity
+    val ftsEntities = entities.map { ItemFtsEntity(title = it.title, author = it.author) }
+    db.itemDao().insertAll(entities)
+}
+
+ItemEntity.kt:
+package com.blackbriar.musicsupervisor.data.local.entity
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "items")
+data class ItemEntity(
+//    @PrimaryKey val id: String,
+    @PrimaryKey(autoGenerate = true) val id: Long,
+    val provider: String,
+    val model: String,
+    val title: String,
+    val author: String,
+    val genres: String,
+    val themes: String,
+    val motif: String,
+    val category: String,
+    val time_period: String,
+    val location: String,
+    val tags: String,
+    val blurb: String
+)
+
+ItemFtsEntity.kt
+package com.blackbriar.musicsupervisor.data.local.entity
+
+import androidx.room.Entity
+import androidx.room.Fts4
+
+@Fts4(contentEntity = ItemEntity::class)
+@Entity(tableName = "items_fts")
+data class ItemFtsEntity(
+    val title: String,
+    val author: String
+)
+
+ItemMappers.kt:
+package com.blackbriar.musicsupervisor.data.local.entity
+
+
+fun generateItemId(title: String, author: String): String {
+    return "${title.trim().lowercase()}|${author.trim().lowercase()}"
+}
+
+fun RawItem.toEntity(): ItemEntity {
+    val id = generateItemId(title, author)
+
+    return ItemEntity(
+        id = id,
+        provider = provider,
+        model = model,
+        title = title,
+        author = author,
+        genres = genres,
+        themes = themes,
+        motif = motif,
+        category = category,
+        time_period = time_period,
+        location = location,
+        tags = tags,
+        blurb = blurb
+    )
+}
+
+RawItem.kt:
+
+package com.blackbriar.musicsupervisor.data.local.entity
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class RawItem(
+    val provider: String,
+    val model: String,
+    val title: String,
+    val author: String,
+    val genres: String,
+    val themes: String,
+    val motif: String,
+    val category: String,
+    val time_period: String,
+    val location: String,
+    val tags: String,
+    val blurb: String,
+    val tokens_used: Int,
+    val timestamp: String
+)

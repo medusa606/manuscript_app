@@ -6,10 +6,10 @@ fun generateItemId(title: String, author: String): String {
 }
 
 fun RawItem.toEntity(): ItemEntity {
-    val id = generateItemId(title, author)
+//    val id = generateItemId(title, author)
 
     return ItemEntity(
-        id = id,
+        id = 0L,
         provider = provider,
         model = model,
         title = title,

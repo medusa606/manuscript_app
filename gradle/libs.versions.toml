@@ -13,6 +13,7 @@ google-services = "4.4.4"
 coil = "3.3.0"
 room = "2.7.2"
 kotlinVersion = "2.2.21"
+material3 = "1.4.0"
 
 
 [libraries]
@@ -43,6 +44,7 @@ room-compiler = { group = "androidx.room", name = "room-compiler", version.ref =
 coil-kt = { group = "io.coil-kt.coil3", name = "coil", version.ref = "coil" }
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-net = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 
 
 [plugins]
