@@ -38,11 +38,19 @@ interface ItemDao {
     """)
     suspend fun searchExact(query: String): List<ItemEntity>
 
+//    // search authors with full name
+//    @Query("""
+//        SELECT DISTINCT author FROM items_fts
+//        WHERE author MATCH :query
+//        LIMIT 20
+//    """)
+//    suspend fun searchAuthors(query: String): List<AuthorItem>
+
     // search authors with partial name
     @Query("""
         SELECT DISTINCT author FROM items_fts
-        WHERE author MATCH :query
-        LIMIT 20
+        WHERE items_fts MATCH :query || '*'     
+        LIMIT 25
     """)
     suspend fun searchAuthors(query: String): List<AuthorItem>
 
@@ -56,4 +64,15 @@ interface ItemDao {
     """)
     suspend fun searchTitlesByAuthor(titleQuery: String, selectedAuthor: String): List<String>
 
+    @Query("""
+        SELECT *
+        FROM items
+        WHERE title = :title
+          AND author = :author
+        LIMIT 1
+    """)
+    suspend fun getItemByTitleAndAuthor(
+        title: String,
+        author: String
+    ): ItemEntity?
 }

@@ -55,6 +55,9 @@ class EntryActivity : AppCompatActivity() {
     private lateinit var appDatabase: AppDatabase
     private lateinit var searchRepository: SearchRepository
     private var userId: String = ""
+    private var selectedAuthor: String? = null
+    private var isAuthorSelection = false
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -93,82 +96,57 @@ class EntryActivity : AppCompatActivity() {
         buttonSave.isEnabled = false
     }
 
-//    private fun setupAutocomplete() {
-//        val authorAdapter = ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line)
-//        val titleAdapter = ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line)
-//
-//        editTextAuthor.setAdapter(authorAdapter)
-//        editTextBookTitle.setAdapter(titleAdapter)
-//
-//        editTextAuthor.addTextChangedListener(object : TextWatcher {
-//            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-//
-//            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-//                val query = s.toString()
-//                if (query.length >= 2) {
-//                    lifecycleScope.launch {
-////                        val results = searchRepository.search(query)
-//                        val results = searchRepository.searchAuthors(query)
-//                        val authors = results.distinct()
-//                        withContext(Dispatchers.Main) {
-//                            authorAdapter.clear()
-//                            authorAdapter.addAll(authors)
-//                            authorAdapter.notifyDataSetChanged()
-//                        }
-//                    }
-//                }
-//            }
-//
-//            override fun afterTextChanged(s: Editable?) {}
-//        })
-//        editTextBookTitle.addTextChangedListener(object : TextWatcher {
-//            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-//
-//            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-//                val query = s.toString()
-//                if (query.length >= 2) {
-//                    lifecycleScope.launch {
-//                        val results = searchRepository.search(query)
-//                        val titles = results.map { it.title }.distinct()
-//                        withContext(Dispatchers.Main) {
-//                            titleAdapter.clear()
-//                            titleAdapter.addAll(titles)
-//                            titleAdapter.notifyDataSetChanged()
-//                        }
-//                    }
-//                }
-//            }
-//
-//            override fun afterTextChanged(s: Editable?) {}
-//        })
-//    }
-
     private fun setupAutocomplete() {
         val authorAdapter = ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line)
         val titleAdapter = ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line)
 
+
         editTextAuthor.setAdapter(authorAdapter)
+
+        // closes the author suggestions when user selects
+        editTextAuthor.setOnItemClickListener { _, _, position, _ ->
+            isAuthorSelection = true
+            selectedAuthor = authorAdapter.getItem(position)
+            editTextAuthor.dismissDropDown()
+        }
+
         editTextBookTitle.setAdapter(titleAdapter)
+        editTextAuthor.threshold = 1
 
         // --- Author autocomplete ---
         editTextAuthor.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun afterTextChanged(s: Editable?) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                val query = s.toString()
-                if (query.length >= 2) {
+            override fun beforeTextChanged(
+                s: CharSequence?, start: Int, count: Int, after: Int
+            ) {}
+
+            override fun onTextChanged(
+                s: CharSequence?, start: Int, before: Int, count: Int
+            ) {
+                // 🔒 Ignore changes caused by clicking a suggestion
+                if (isAuthorSelection) {
+                    isAuthorSelection = false
+                    return
+                }
+
+                val query = s?.toString()?.trim().orEmpty()
+                selectedAuthor = null
+
+                if (query.length >= 1) {
                     lifecycleScope.launch {
-                        // Search authors (partial first or last name)
-                        val results = searchRepository.searchAuthors(query)
-                        val authors = results.distinct() // List<String>
+                        val authors = searchRepository.searchAuthors(query)
                         withContext(Dispatchers.Main) {
                             authorAdapter.clear()
-                            authorAdapter.addAll(authors)
+                            authorAdapter.addAll(authors.distinct())
                             authorAdapter.notifyDataSetChanged()
                         }
                     }
+                } else {
+                    authorAdapter.clear()
+                    editTextAuthor.dismissDropDown()
                 }
             }
+
+            override fun afterTextChanged(s: Editable?) {}
         })
 
         // --- Title autocomplete ---
@@ -199,12 +177,9 @@ class EntryActivity : AppCompatActivity() {
     }
 
     suspend fun performBookDataFetch(title: String, author: String): BookDetails {
-        // Use the DAO to do a prefix search (or exact search if you prefer)
-        val items = searchRepository.search("$title $author") // or searchPrefix(title) etc.
-
-        if (items.isEmpty()) {
-            // Return empty BookDetails if nothing found
-            return BookDetails(
+        // take exact title author match
+        val item = searchRepository.getExactItem(title, author)
+            ?: return BookDetails(
                 blurb = "",
                 coverUrl = "",
                 categories = emptyList(),
@@ -215,10 +190,6 @@ class EntryActivity : AppCompatActivity() {
                 time_period = emptyList(),
                 location = emptyList()
             )
-        }
-
-        // Take the first matching item
-        val item = items.first()
 
         // Helper function to split comma-separated strings into list
         fun splitToList(str: String): List<String> {
@@ -240,9 +211,13 @@ class EntryActivity : AppCompatActivity() {
 
 
         private fun fetchBookDetails() {
+        val view = this.currentFocus //hide the keyboard
+        if (view != null) {
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            imm.hideSoftInputFromWindow(view.windowToken, 0)
+        }
         val author = editTextAuthor.text.toString().trim()
         val title = editTextBookTitle.text.toString().trim()
-
 
         if (author.isEmpty() || title.isEmpty()) {
             Toast.makeText(this, "Please enter both author and book title.", Toast.LENGTH_SHORT).show()

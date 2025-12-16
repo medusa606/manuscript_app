@@ -52,4 +52,8 @@ class SearchRepository(private val itemDao: ItemDao) {
         return itemDao.searchTitlesByAuthor(titleQuery, selectedAuthor)
     }
 
+    suspend fun getExactItem(title: String, author: String): ItemEntity? {
+        return itemDao.getItemByTitleAndAuthor(title, author)
+    }
+
 }

@@ -1,0 +1,9 @@
+show titles as soon as field is active
+getting wrong blurb matched to book title
+suggestions only showing after deleting
+have an 'X' at right of box to clear contents
+when you press 'fetch details' minimise keyboard so user can see the full screen.
+
+when image loads it brings up a purple box before the image
+change background fade to match tones of book cover
+
