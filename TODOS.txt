@@ -6,4 +6,10 @@ when you press 'fetch details' minimise keyboard so user can see the full screen
 
 when image loads it brings up a purple box before the image
 change background fade to match tones of book cover
+debounce typing (300ms delay)
+clear title field when author changes
+prevent title search if author not selected from list
 
+chenge text to white or the opposite of bg colour?
+Make entry boxes, buttons visible when changing background
+Break out tags into littl bubbles and colour-code them

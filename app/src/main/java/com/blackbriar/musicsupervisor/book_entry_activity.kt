@@ -9,6 +9,9 @@ import androidx.lifecycle.lifecycleScope
 import coil3.load
 import coil3.request.crossfade
 import coil3.request.placeholder
+import coil3.Image
+import coil3.toBitmap
+
 import com.blackbriar.musicsupervisor.data.local.db.AppDatabase
 import com.blackbriar.musicsupervisor.data.local.db.importJsonToRoomWithFts
 import com.blackbriar.musicsupervisor.data.local.repository.SearchRepository
@@ -29,14 +32,110 @@ import org.json.JSONObject
 import android.text.TextWatcher
 import android.text.Editable
 
+// for image colour extraction and background
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.ColorDrawable
+import android.widget.ImageView
+import androidx.palette.graphics.Palette
+import coil3.request.ImageResult
+import coil3.request.SuccessResult
+import androidx.core.graphics.drawable.toBitmap
+import androidx.core.view.isVisible
+import kotlinx.coroutines.withContext
+import android.graphics.drawable.Drawable
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.Canvas
+import coil3.request.bitmapConfig
+import com.android.volley.toolbox.ImageRequest
+
+
+/**
+ * Loads a cover image and applies a background gradient to match its dominant color.
+ * * Note: 'suspend' was removed because Coil's .load() extension uses an async
+ * listener pattern, not coroutine suspension.
+ *
+ * @param coverUrl URL of the cover image
+ * @param coverImageView The ImageView where the cover is displayed
+ * @param backgroundView The parent view to apply the background color/gradient
+ */
+fun loadCoverWithDynamicBackground(
+    coverUrl: String,
+    coverImageView: ImageView,
+    backgroundView: View
+) {
+    if (coverUrl.isEmpty()) {
+        coverImageView.isVisible = false
+        // Reset background if needed or leave as is
+        return
+    }
+
+    coverImageView.isVisible = true
+
+    coverImageView.load(coverUrl) {
+        crossfade(true)
+
+        // CRITICAL FIX: Palette API cannot read pixels from Hardware Bitmaps.
+        // We must force software rendering for the access to work.
+//        allowHardware(false)
+        bitmapConfig(Bitmap.Config.ARGB_8888)
+
+        listener(
+            onSuccess = { _, result ->
+                // Safely convert the drawable to a bitmap
+                val bitmap = (result.image as? BitmapDrawable)?.bitmap
+                    ?: result.image.toBitmap()
+
+                Palette.from(bitmap).generate { palette ->
+                    // Default fallback color (Dark Gray/Black)
+                    val defaultColor = 0xFF121212.toInt()
+
+                    // Plex Style Logic:
+                    // 1. Try Dark Muted (Best for backgrounds)
+                    // 2. Try Dark Vibrant (If the image is neon/bright but we want a dark bg)
+                    // 3. Try Dominant (General average)
+                    // 4. Fallback to default
+//                    val dominantColor = palette?.getDominantColor(
+                    val dominantColor = palette?.getDarkVibrantColor(
+//                    val dominantColor = palette?.getDarkMutedColor(
+                        palette.getDarkVibrantColor(
+                            palette.getDominantColor(defaultColor)
+                        )
+                    ) ?: defaultColor
+
+                    val gradientDrawable = GradientDrawable(
+                        GradientDrawable.Orientation.TOP_BOTTOM,
+                        intArrayOf(dominantColor, 0xFF000000.toInt())
+                    )
+
+                    // Smooth fade-in for the background
+                    backgroundView.animate().cancel()
+                    // Only reset alpha if it's not already visible to prevent flickering on quick reloads
+                    if (backgroundView.alpha == 0f) {
+                        backgroundView.alpha = 0f
+                    }
+
+                    backgroundView.background = gradientDrawable
+                    backgroundView.animate()
+                        .alpha(1f)
+                        .setDuration(1400) // Slightly longer duration for a "cinematic" feel
+                        .start()
+                }
+            },
+            onError = { _, _ ->
+                // Handle error state if necessary
+            }
+        )
+    }
+}
+
+
+
 class EntryActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
     private val dbFirestore = Firebase.firestore
 
-    // Removed due to possible type cast crash
-    //    private lateinit var editTextBookTitle: AutoCompleteTextView
-    //    private lateinit var editTextAuthor: AutoCompleteTextView
     private lateinit var editTextBookTitle: MaterialAutoCompleteTextView
     private lateinit var editTextAuthor: MaterialAutoCompleteTextView
 
@@ -57,11 +156,15 @@ class EntryActivity : AppCompatActivity() {
     private var userId: String = ""
     private var selectedAuthor: String? = null
     private var isAuthorSelection = false
+    private lateinit var backgroundView: View
+
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.entry_activity)
+        backgroundView = findViewById(R.id.backgroundView)
+
 
         // Firebase Auth
         auth = Firebase.auth
@@ -282,6 +385,12 @@ class EntryActivity : AppCompatActivity() {
                 } else {
                     imageViewCover.visibility = View.GONE
                 }
+
+                loadCoverWithDynamicBackground(
+                    coverUrl = fetchedCoverUrl,
+                    coverImageView = imageViewCover,
+                    backgroundView = backgroundView
+                )
 
                 buttonSave.isEnabled = true
                 Toast.makeText(this@EntryActivity, "Details fetched successfully!", Toast.LENGTH_SHORT).show()
