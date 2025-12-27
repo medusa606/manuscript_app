@@ -27,12 +27,13 @@
             android:padding="32dp">
 
             <TextView
+                android:id="@+id/headerTitle"
                 android:text="Book Details Entry"
                 android:textSize="24sp"
                 android:textStyle="bold"
                 android:layout_marginBottom="32dp"
-                android:textColor="@color/black"
                 android:layout_width="wrap_content"
+                android:textColor="@android:color/white"
                 android:layout_height="wrap_content"/>
 
             <!-- Author Input -->
@@ -112,8 +113,27 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:padding="16dp"
-                android:textColor="@color/black"
-                android:background="#F5F5F5"/>
+                android:background="#66000000"
+                android:textColor="@android:color/white"/>
+
+            <RatingBar
+                android:id="@+id/rating_bar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:numStars="5"
+                android:stepSize="0.1"
+                android:isIndicator="true"
+                android:rating="0"
+                style="?android:attr/ratingBarStyleSmall"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/text_view_rating"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="14sp"
+                android:textColor="@android:color/white"
+                android:visibility="gone" />
 
         </LinearLayout>
     </ScrollView>

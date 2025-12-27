@@ -44,29 +44,40 @@ import androidx.core.view.isVisible
 import kotlinx.coroutines.withContext
 import android.graphics.drawable.Drawable
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.Canvas
+import android.content.res.ColorStateList
 import coil3.request.bitmapConfig
 import com.android.volley.toolbox.ImageRequest
 
 
-/**
- * Loads a cover image and applies a background gradient to match its dominant color.
- * * Note: 'suspend' was removed because Coil's .load() extension uses an async
- * listener pattern, not coroutine suspension.
- *
- * @param coverUrl URL of the cover image
- * @param coverImageView The ImageView where the cover is displayed
- * @param backgroundView The parent view to apply the background color/gradient
- */
+private fun isColorLight(color: Int): Boolean {
+    val darkness =
+        1 - (0.299 * Color.red(color) + 0.587 * Color.green(color) + 0.114 * Color.blue(color)) / 255
+    return darkness < 0.5
+}
+
 fun loadCoverWithDynamicBackground(
     coverUrl: String,
     coverImageView: ImageView,
-    backgroundView: View
+    backgroundView: View,
+    textViews: List<TextView> = emptyList(),
+    actionButtons: List<Button> = emptyList()
+
 ) {
+    val fallbackBgColor = 0xFF121212.toInt() // Deep Charcoal/Black
+    val initialGradient = GradientDrawable(
+        GradientDrawable.Orientation.TOP_BOTTOM,
+        intArrayOf(fallbackBgColor, Color.BLACK)
+    )
+    backgroundView.background = initialGradient
+
+    // Ensure text is white for dark backgrounds
+    textViews.forEach { it.setTextColor(Color.WHITE) }
+
     if (coverUrl.isEmpty()) {
         coverImageView.isVisible = false
-        // Reset background if needed or leave as is
         return
     }
 
@@ -75,9 +86,6 @@ fun loadCoverWithDynamicBackground(
     coverImageView.load(coverUrl) {
         crossfade(true)
 
-        // CRITICAL FIX: Palette API cannot read pixels from Hardware Bitmaps.
-        // We must force software rendering for the access to work.
-//        allowHardware(false)
         bitmapConfig(Bitmap.Config.ARGB_8888)
 
         listener(
@@ -88,16 +96,14 @@ fun loadCoverWithDynamicBackground(
 
                 Palette.from(bitmap).generate { palette ->
                     // Default fallback color (Dark Gray/Black)
-                    val defaultColor = 0xFF121212.toInt()
+                    val defaultColor = fallbackBgColor
 
-                    // Plex Style Logic:
-                    // 1. Try Dark Muted (Best for backgrounds)
-                    // 2. Try Dark Vibrant (If the image is neon/bright but we want a dark bg)
-                    // 3. Try Dominant (General average)
-                    // 4. Fallback to default
-//                    val dominantColor = palette?.getDominantColor(
+                    val accentColor: Int = palette?.getVibrantColor(
+                        palette.getLightVibrantColor(Color.LTGRAY)
+                    ) ?: Color.LTGRAY
+
+
                     val dominantColor = palette?.getDarkVibrantColor(
-//                    val dominantColor = palette?.getDarkMutedColor(
                         palette.getDarkVibrantColor(
                             palette.getDominantColor(defaultColor)
                         )
@@ -105,25 +111,32 @@ fun loadCoverWithDynamicBackground(
 
                     val gradientDrawable = GradientDrawable(
                         GradientDrawable.Orientation.TOP_BOTTOM,
-                        intArrayOf(dominantColor, 0xFF000000.toInt())
+                        intArrayOf(dominantColor, Color.BLACK)
                     )
 
-                    // Smooth fade-in for the background
                     backgroundView.animate().cancel()
-                    // Only reset alpha if it's not already visible to prevent flickering on quick reloads
-                    if (backgroundView.alpha == 0f) {
-                        backgroundView.alpha = 0f
-                    }
-
+                    backgroundView.setBackgroundColor(0xFF121212.toInt())
+                    backgroundView.alpha = 0f
                     backgroundView.background = gradientDrawable
+//                    if (backgroundView.alpha == 0f) {
+//                        backgroundView.alpha = 0f
+//                    }
                     backgroundView.animate()
                         .alpha(1f)
                         .setDuration(1400) // Slightly longer duration for a "cinematic" feel
                         .start()
+
+                    textViews
+                        .filterIsInstance<TextView>()
+                        .forEach { it.setTextColor(Color.WHITE) }
+
+                    actionButtons.forEach { button ->
+                        button.backgroundTintList = ColorStateList.valueOf(accentColor)
+
+                        val isLightAccent = isColorLight(accentColor)
+                        button.setTextColor(if (isLightAccent) Color.BLACK else Color.WHITE)
+                    }
                 }
-            },
-            onError = { _, _ ->
-                // Handle error state if necessary
             }
         )
     }
@@ -138,6 +151,7 @@ class EntryActivity : AppCompatActivity() {
 
     private lateinit var editTextBookTitle: MaterialAutoCompleteTextView
     private lateinit var editTextAuthor: MaterialAutoCompleteTextView
+    private lateinit var headerTitle: MaterialAutoCompleteTextView
 
     private lateinit var buttonSave: MaterialButton
     private lateinit var buttonFetch: MaterialButton
@@ -158,12 +172,27 @@ class EntryActivity : AppCompatActivity() {
     private var isAuthorSelection = false
     private lateinit var backgroundView: View
 
+    private var fetchedRating: Double = 0.0
+    private var fetchedRatingsCount: Int = 0
+    private var fetchedRatingSource: String = ""
+    private lateinit var ratingBar: RatingBar
+    private lateinit var textViewRating: TextView
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.entry_activity)
         backgroundView = findViewById(R.id.backgroundView)
+
+        backgroundView.setBackgroundColor(0xFF121212.toInt())
+        textViewBlurb.setTextColor(Color.WHITE)
+        listOf(
+            headerTitle,
+            editTextAuthor,
+            editTextBookTitle
+        ).forEach {
+            if (it is TextView) it.setTextColor(Color.WHITE)
+        }
 
 
         // Firebase Auth
@@ -195,8 +224,10 @@ class EntryActivity : AppCompatActivity() {
 
         // Save button
         buttonSave.setOnClickListener { saveBookEntry() }
-
         buttonSave.isEnabled = false
+
+        ratingBar = findViewById(R.id.rating_bar)
+        textViewRating = findViewById(R.id.text_view_rating)
     }
 
     private fun setupAutocomplete() {
@@ -337,9 +368,17 @@ class EntryActivity : AppCompatActivity() {
                 val details: BookDetails = withContext(Dispatchers.IO) {
                     performBookDataFetch(title, author)
                 }
+                // Fetch cover AND rating data together
+                val googleBookData = withContext(Dispatchers.IO) {
+                    fetchBookData(title, author)
+                }
+                fetchedCoverUrl = googleBookData.coverUrl
+                fetchedRating = googleBookData.averageRating
+                fetchedRatingsCount = googleBookData.ratingsCount
+                fetchedRatingSource = googleBookData.source
+//                fetchedCoverUrl = withContext(Dispatchers.IO) { fetchCoverUrl(title, author) }
 
                 fetchedBlurb = details.blurb
-                fetchedCoverUrl = withContext(Dispatchers.IO) { fetchCoverUrl(title, author) }
                 fetchedThemes = details.themes
                 fetchedMotif = details.motif
                 fetchedTimePeriod = details.time_period
@@ -372,16 +411,44 @@ class EntryActivity : AppCompatActivity() {
                         append("\n\n🏷️ Location: ${details.location.joinToString(", ")}")
                 }
 
+                // Display rating
+                        if (fetchedRating > 0) {
+                            ratingBar.rating = fetchedRating.toFloat()
+                            ratingBar.visibility = View.VISIBLE
+
+                            val ratingText = String.format(
+                                Locale.getDefault(),
+                                "%.1f/5 (%s ratings via %s)",
+                                fetchedRating,
+                                formatRatingsCount(fetchedRatingsCount),
+                                fetchedRatingSource
+                            )
+                            textViewRating.text = ratingText
+                            textViewRating.visibility = View.VISIBLE
+                        } else {
+                            ratingBar.visibility = View.GONE
+                            textViewRating.text = "No ratings available"
+                            textViewRating.visibility = View.VISIBLE
+                        }
+
+/*                // Load cover image
+                if (fetchedCoverUrl.isNotEmpty()) {
+                    imageViewCover.visibility = View.VISIBLE
+                    imageViewCover.load(fetchedCoverUrl) {
+                        crossfade(true)
+                        crossfade(500)
+                    }
+                } else {
+                    imageViewCover.visibility = View.GONE
+                }*/
+
                 // Load cover image
                 if (fetchedCoverUrl.isNotEmpty()) {
                     imageViewCover.visibility = View.VISIBLE
                     imageViewCover.load(fetchedCoverUrl) {
                         crossfade(true)
                         crossfade(500)
-//                        placeholder(R.drawable.ic_launcher_background) // resource ID is correct
-//                        error(R.drawable.ic_launcher_background)
                     }
-
                 } else {
                     imageViewCover.visibility = View.GONE
                 }
@@ -406,15 +473,82 @@ class EntryActivity : AppCompatActivity() {
         }
     }
 
+    /*
     private fun fetchCoverUrl(title: String, author: String): String {
-        var coverUrl = ""
+    var coverUrl = ""
 
-        // Google Books API
+    // Google Books API
+    try {
+    val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
+    val encodedAuthor = java.net.URLEncoder.encode(author, "UTF-8")
+    val googleApiUrl =
+    "https://www.googleapis.com/books/v1/volumes?q=intitle:$encodedTitle+inauthor:$encodedAuthor&maxResults=1&fields=items(volumeInfo(imageLinks))"
+    val googleUrl = URL(googleApiUrl)
+    val googleConn = googleUrl.openConnection() as HttpURLConnection
+    googleConn.requestMethod = "GET"
+    googleConn.connectTimeout = 5000
+
+    if (googleConn.responseCode == HttpURLConnection.HTTP_OK) {
+    val responseBody = googleConn.inputStream.bufferedReader().use { it.readText() }
+    val jsonResponse = JSONObject(responseBody)
+
+    if (jsonResponse.has("items") && jsonResponse.getJSONArray("items").length() > 0) {
+    val item = jsonResponse.getJSONArray("items").getJSONObject(0)
+    val volumeInfo = item.getJSONObject("volumeInfo")
+
+    if (volumeInfo.has("imageLinks")) {
+    val imageLinks = volumeInfo.getJSONObject("imageLinks")
+    coverUrl = imageLinks.optString("thumbnail", "").replace("http://", "https://")
+    if (coverUrl.isEmpty()) {
+    coverUrl = imageLinks.optString("smallThumbnail", "").replace("http://", "https://")
+    }
+    }
+    }
+    }
+    } catch (e: Exception) {
+    Log.e("BookCoverFetch", "Failed to fetch cover", e)
+    }
+
+    // Open Library fallback
+    try {
+    val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
+    val encodedAuthor = java.net.URLEncoder.encode(author, "UTF-8")
+    val openLibApiUrl =
+    "https://openlibrary.org/search.json?title=$encodedTitle&author=$encodedAuthor&limit=1"
+    val openUrl = URL(openLibApiUrl)
+    val openConn = openUrl.openConnection() as HttpURLConnection
+    openConn.requestMethod = "GET"
+    openConn.connectTimeout = 5000
+
+    if (openConn.responseCode == HttpURLConnection.HTTP_OK) {
+    val responseBody = openConn.inputStream.bufferedReader().use { it.readText() }
+    val jsonResponse = JSONObject(responseBody)
+
+    if (jsonResponse.has("docs") && jsonResponse.getJSONArray("docs").length() > 0) {
+    val doc = jsonResponse.getJSONArray("docs").getJSONObject(0)
+    val coverId = doc.optInt("cover_i", -1)
+    if (coverId != -1) {
+    coverUrl = "https://covers.openlibrary.org/b/id/$coverId-L.jpg"
+    }
+    }
+    }
+    } catch (e: Exception) {
+    Log.e("BookCoverFetch", "Failed to fetch cover from Open Library", e)
+    }
+
+    return coverUrl
+    }
+    */
+
+    private fun fetchBookData(title: String, author: String): GoogleBookData {
+        var bookData = GoogleBookData()
+
+        // Google Books API - Primary source
         try {
             val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
             val encodedAuthor = java.net.URLEncoder.encode(author, "UTF-8")
             val googleApiUrl =
-                "https://www.googleapis.com/books/v1/volumes?q=intitle:$encodedTitle+inauthor:$encodedAuthor&maxResults=1&fields=items(volumeInfo(imageLinks))"
+                "https://www.googleapis.com/books/v1/volumes?q=intitle:$encodedTitle+inauthor:$encodedAuthor&maxResults=1&fields=items(volumeInfo(imageLinks,averageRating,ratingsCount))"
             val googleUrl = URL(googleApiUrl)
             val googleConn = googleUrl.openConnection() as HttpURLConnection
             googleConn.requestMethod = "GET"
@@ -428,6 +562,8 @@ class EntryActivity : AppCompatActivity() {
                     val item = jsonResponse.getJSONArray("items").getJSONObject(0)
                     val volumeInfo = item.getJSONObject("volumeInfo")
 
+                    // Extract cover URL
+                    var coverUrl = ""
                     if (volumeInfo.has("imageLinks")) {
                         val imageLinks = volumeInfo.getJSONObject("imageLinks")
                         coverUrl = imageLinks.optString("thumbnail", "").replace("http://", "https://")
@@ -435,42 +571,75 @@ class EntryActivity : AppCompatActivity() {
                             coverUrl = imageLinks.optString("smallThumbnail", "").replace("http://", "https://")
                         }
                     }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("BookCoverFetch", "Failed to fetch cover", e)
-        }
 
-        // Open Library fallback
-        try {
-            val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
-            val encodedAuthor = java.net.URLEncoder.encode(author, "UTF-8")
-            val openLibApiUrl =
-                "https://openlibrary.org/search.json?title=$encodedTitle&author=$encodedAuthor&limit=1"
-            val openUrl = URL(openLibApiUrl)
-            val openConn = openUrl.openConnection() as HttpURLConnection
-            openConn.requestMethod = "GET"
-            openConn.connectTimeout = 5000
+                    // Extract rating data
+                    val averageRating = volumeInfo.optDouble("averageRating", 0.0)
+                    val ratingsCount = volumeInfo.optInt("ratingsCount", 0)
 
-            if (openConn.responseCode == HttpURLConnection.HTTP_OK) {
-                val responseBody = openConn.inputStream.bufferedReader().use { it.readText() }
-                val jsonResponse = JSONObject(responseBody)
+                    bookData = GoogleBookData(
+                        coverUrl = coverUrl,
+                        averageRating = averageRating,
+                        ratingsCount = ratingsCount,
+                        source = "google"
+                    )
 
-                if (jsonResponse.has("docs") && jsonResponse.getJSONArray("docs").length() > 0) {
-                    val doc = jsonResponse.getJSONArray("docs").getJSONObject(0)
-                    val coverId = doc.optInt("cover_i", -1)
-                    if (coverId != -1) {
-                        coverUrl = "https://covers.openlibrary.org/b/id/$coverId-L.jpg"
+                    // If we have cover and rating, return immediately
+                    if (coverUrl.isNotEmpty() && averageRating > 0) {
+                        return bookData
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.e("BookCoverFetch", "Failed to fetch cover from Open Library", e)
+            Log.e("BookDataFetch", "Failed to fetch from Google Books", e)
         }
 
-        return coverUrl
-    }
+        // Open Library fallback (for cover if Google didn't have one)
+        if (bookData.coverUrl.isEmpty()) {
+            try {
+                val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
+                val encodedAuthor = java.net.URLEncoder.encode(author, "UTF-8")
+                val openLibApiUrl =
+                    "https://openlibrary.org/search.json?title=$encodedTitle&author=$encodedAuthor&limit=1"
+                val openUrl = URL(openLibApiUrl)
+                val openConn = openUrl.openConnection() as HttpURLConnection
+                openConn.requestMethod = "GET"
+                openConn.connectTimeout = 5000
 
+                if (openConn.responseCode == HttpURLConnection.HTTP_OK) {
+                    val responseBody = openConn.inputStream.bufferedReader().use { it.readText() }
+                    val jsonResponse = JSONObject(responseBody)
+
+                    if (jsonResponse.has("docs") && jsonResponse.getJSONArray("docs").length() > 0) {
+                        val doc = jsonResponse.getJSONArray("docs").getJSONObject(0)
+
+                        // Cover
+                        val coverId = doc.optInt("cover_i", -1)
+                        if (coverId != -1) {
+                            bookData = bookData.copy(
+                                coverUrl = "https://covers.openlibrary.org/b/id/$coverId-L.jpg"
+                            )
+                        }
+
+                        // Rating data (Open Library has limited rating data)
+                        val ratingsAverage = doc.optDouble("ratings_average", 0.0)
+                        val ratingsCount = doc.optInt("ratings_count", 0)
+
+                        if (ratingsAverage > 0 && bookData.averageRating == 0.0) {
+                            bookData = bookData.copy(
+                                averageRating = ratingsAverage,
+                                ratingsCount = ratingsCount,
+                                source = "openlibrary"
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("BookDataFetch", "Failed to fetch from Open Library", e)
+            }
+        }
+
+        return bookData
+    }
 
     private suspend fun analyzeEmotion(blurb: String): Map<String, Double> {
         val apiUrl = "https://emotion-api-bst1.onrender.com/analyze"
@@ -522,6 +691,9 @@ class EntryActivity : AppCompatActivity() {
             "title" to title,
             "blurb" to fetchedBlurb,
             "coverUrl" to fetchedCoverUrl,
+            "rating" to fetchedRating,
+            "ratingsCount" to fetchedRatingsCount,
+            "ratingSource" to fetchedRatingSource,
             "timestamp" to System.currentTimeMillis()
         )
 
@@ -541,6 +713,15 @@ class EntryActivity : AppCompatActivity() {
     }
 }
 
+// Helper function to format large rating counts
+private fun formatRatingsCount(count: Int): String {
+    return when {
+        count >= 1_000_000 -> String.format(Locale.getDefault(), "%.1fM", count / 1_000_000.0)
+        count >= 1_000 -> String.format(Locale.getDefault(), "%.1fK", count / 1_000.0)
+        else -> count.toString()
+    }
+}
+
 data class BookDetails(
     val blurb: String,
     val coverUrl: String,
@@ -551,4 +732,13 @@ data class BookDetails(
     val motif: List<String> = emptyList(),
     val time_period: List<String> = emptyList(),
     val location: List<String> = emptyList()
+)
+
+
+// Data class to hold book information
+data class GoogleBookData(
+    val coverUrl: String = "",
+    val averageRating: Double = 0.0,
+    val ratingsCount: Int = 0,
+    val source: String = "" // "google" or "openlibrary"
 )
