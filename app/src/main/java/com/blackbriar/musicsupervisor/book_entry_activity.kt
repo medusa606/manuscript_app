@@ -151,7 +151,7 @@ class EntryActivity : AppCompatActivity() {
 
     private lateinit var editTextBookTitle: MaterialAutoCompleteTextView
     private lateinit var editTextAuthor: MaterialAutoCompleteTextView
-    private lateinit var headerTitle: MaterialAutoCompleteTextView
+    private lateinit var headerTitle: TextView
 
     private lateinit var buttonSave: MaterialButton
     private lateinit var buttonFetch: MaterialButton
@@ -183,6 +183,16 @@ class EntryActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.entry_activity)
         backgroundView = findViewById(R.id.backgroundView)
+        editTextAuthor = findViewById(R.id.edit_text_author)
+        editTextBookTitle = findViewById(R.id.edit_text_book_title)
+        buttonSave = findViewById(R.id.button_ok)
+        buttonFetch = findViewById(R.id.button_fetch_details)
+        imageViewCover = findViewById(R.id.image_view_cover)
+        textViewBlurb = findViewById(R.id.text_view_blurb)
+        headerTitle = findViewById(R.id.headerTitle) // Make sure this exists in your layout
+        ratingBar = findViewById(R.id.rating_bar)
+        textViewRating = findViewById(R.id.text_view_rating)
+
 
         backgroundView.setBackgroundColor(0xFF121212.toInt())
         textViewBlurb.setTextColor(Color.WHITE)
@@ -194,18 +204,10 @@ class EntryActivity : AppCompatActivity() {
             if (it is TextView) it.setTextColor(Color.WHITE)
         }
 
-
         // Firebase Auth
         auth = Firebase.auth
         userId = auth.currentUser?.uid ?: UUID.randomUUID().toString()
 
-        // Views
-        editTextAuthor = findViewById(R.id.edit_text_author)
-        editTextBookTitle = findViewById(R.id.edit_text_book_title)
-        buttonSave = findViewById(R.id.button_ok)
-        buttonFetch = findViewById(R.id.button_fetch_details)
-        imageViewCover = findViewById(R.id.image_view_cover)
-        textViewBlurb = findViewById(R.id.text_view_blurb)
 
         // Room DB + Repository
         appDatabase = AppDatabase.getInstance(applicationContext)
@@ -223,7 +225,7 @@ class EntryActivity : AppCompatActivity() {
         buttonFetch.setOnClickListener { fetchBookDetails() }
 
         // Save button
-        buttonSave.setOnClickListener { saveBookEntry() }
+//        buttonSave.setOnClickListener { saveBookEntry() }
         buttonSave.isEnabled = false
 
         ratingBar = findViewById(R.id.rating_bar)
@@ -251,7 +253,8 @@ class EntryActivity : AppCompatActivity() {
         editTextAuthor.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(
                 s: CharSequence?, start: Int, count: Int, after: Int
-            ) {}
+            ) {
+            }
 
             override fun onTextChanged(
                 s: CharSequence?, start: Int, before: Int, count: Int
@@ -344,17 +347,20 @@ class EntryActivity : AppCompatActivity() {
     }
 
 
-        private fun fetchBookDetails() {
-        val view = this.currentFocus //hide the keyboard
+       // Use this in your fetchBookDetails function:
+    private fun fetchBookDetails() {
+        val view = this.currentFocus
         if (view != null) {
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            val imm =
+                getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
             imm.hideSoftInputFromWindow(view.windowToken, 0)
         }
         val author = editTextAuthor.text.toString().trim()
         val title = editTextBookTitle.text.toString().trim()
 
         if (author.isEmpty() || title.isEmpty()) {
-            Toast.makeText(this, "Please enter both author and book title.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Please enter both author and book title.", Toast.LENGTH_SHORT)
+                .show()
             return
         }
 
@@ -368,15 +374,25 @@ class EntryActivity : AppCompatActivity() {
                 val details: BookDetails = withContext(Dispatchers.IO) {
                     performBookDataFetch(title, author)
                 }
-                // Fetch cover AND rating data together
-                val googleBookData = withContext(Dispatchers.IO) {
-                    fetchBookData(title, author)
+
+                val googleBookData = fetchBookDataWithHighResCovers(title, author)
+                fetchedCoverUrl = googleBookData.highResCoverUrl.ifEmpty { googleBookData.coverUrl }
+
+                if (fetchedCoverUrl.isNotEmpty()) {
+                    loadCoverWithDynamicBackground(
+                        coverUrl = fetchedCoverUrl,
+                        coverImageView = imageViewCover,
+                        backgroundView = backgroundView,
+                        textViews = listOf(textViewBlurb, textViewRating),
+                        actionButtons = listOf(buttonSave, buttonFetch)
+                    )
+                } else {
+                    imageViewCover.visibility = View.GONE
                 }
-                fetchedCoverUrl = googleBookData.coverUrl
+
                 fetchedRating = googleBookData.averageRating
                 fetchedRatingsCount = googleBookData.ratingsCount
                 fetchedRatingSource = googleBookData.source
-//                fetchedCoverUrl = withContext(Dispatchers.IO) { fetchCoverUrl(title, author) }
 
                 fetchedBlurb = details.blurb
                 fetchedThemes = details.themes
@@ -384,10 +400,14 @@ class EntryActivity : AppCompatActivity() {
                 fetchedTimePeriod = details.time_period
                 fetchedLocation = details.location
 
-
                 // Display blurb & metadata
                 textViewBlurb.text = buildString {
                     append(if (details.blurb.isNotEmpty()) details.blurb else "No blurb found.")
+
+                    // Add publish year if available
+                    if (googleBookData.publishYear.isNotEmpty()) {
+                        append("\n\n📅 Published: ${googleBookData.publishYear}")
+                    }
 
                     if (details.categories.isNotEmpty())
                         append("\n\n📚 Categories: ${details.categories.joinToString(", ")}")
@@ -396,58 +416,56 @@ class EntryActivity : AppCompatActivity() {
                         append("\n\n📖 Subjects: ${details.subjects.joinToString(", ")}")
 
                     if (details.genres.isNotEmpty())
-                        append("\n\n🏷️ Genres: ${details.genres.joinToString(", ")}")
+                        append("\n\n\uD83C\uDFAD Genres: ${details.genres.joinToString(", ")}")
 
                     if (details.themes.isNotEmpty())
-                        append("\n\n🏷️ Themes: ${details.themes.joinToString(", ")}")
+                        append("\n\n\uD83E\uDDE9 Themes: ${details.themes.joinToString(", ")}")
 
                     if (details.motif.isNotEmpty())
-                        append("\n\n🏷️ Motifs: ${details.motif.joinToString(", ")}")
+                        append("\n\n\u269C\uFE0F Motifs: ${details.motif.joinToString(", ")}")
 
                     if (details.time_period.isNotEmpty())
-                        append("\n\n🏷️ Time Period: ${details.time_period.joinToString(", ")}")
+                        append("\n\n\u23F3 Time Period: ${details.time_period.joinToString(", ")}")
 
                     if (details.location.isNotEmpty())
-                        append("\n\n🏷️ Location: ${details.location.joinToString(", ")}")
+                        append("\n\n\uD83E\uDDED Location: ${details.location.joinToString(", ")}")
+
+                    if (googleBookData.isbn.isNotEmpty()) {
+                        append("\n\n\uD83C\uDD94 ISBN: ${googleBookData.isbn}")
+                    }
                 }
 
                 // Display rating
-                        if (fetchedRating > 0) {
-                            ratingBar.rating = fetchedRating.toFloat()
-                            ratingBar.visibility = View.VISIBLE
+                if (fetchedRating > 0) {
+                    ratingBar.rating = fetchedRating.toFloat()
+                    ratingBar.visibility = View.VISIBLE
 
-                            val ratingText = String.format(
-                                Locale.getDefault(),
-                                "%.1f/5 (%s ratings via %s)",
-                                fetchedRating,
-                                formatRatingsCount(fetchedRatingsCount),
-                                fetchedRatingSource
-                            )
-                            textViewRating.text = ratingText
-                            textViewRating.visibility = View.VISIBLE
-                        } else {
-                            ratingBar.visibility = View.GONE
-                            textViewRating.text = "No ratings available"
-                            textViewRating.visibility = View.VISIBLE
-                        }
-
-/*                // Load cover image
-                if (fetchedCoverUrl.isNotEmpty()) {
-                    imageViewCover.visibility = View.VISIBLE
-                    imageViewCover.load(fetchedCoverUrl) {
-                        crossfade(true)
-                        crossfade(500)
-                    }
+                    val ratingText = String.format(
+                        Locale.getDefault(),
+                        "%.1f/5 (%s ratings via %s)",
+                        fetchedRating,
+                        formatRatingsCount(fetchedRatingsCount),
+                        fetchedRatingSource
+                    )
+                    textViewRating.text = ratingText
+                    textViewRating.visibility = View.VISIBLE
                 } else {
-                    imageViewCover.visibility = View.GONE
-                }*/
+                    ratingBar.visibility = View.GONE
+                    textViewRating.text = "No ratings available"
+                    textViewRating.visibility = View.VISIBLE
+                }
 
-                // Load cover image
+                // Load high-quality cover image with Coil
                 if (fetchedCoverUrl.isNotEmpty()) {
                     imageViewCover.visibility = View.VISIBLE
                     imageViewCover.load(fetchedCoverUrl) {
                         crossfade(true)
                         crossfade(500)
+                        // Use high quality bitmap config for better rendering
+                        bitmapConfig(Bitmap.Config.ARGB_8888)
+                        // Add placeholder for better UX
+//                        placeholder(R.drawable.book_placeholder)
+//                        error(R.drawable.book_placeholder)
                     }
                 } else {
                     imageViewCover.visibility = View.GONE
@@ -456,20 +474,150 @@ class EntryActivity : AppCompatActivity() {
                 loadCoverWithDynamicBackground(
                     coverUrl = fetchedCoverUrl,
                     coverImageView = imageViewCover,
-                    backgroundView = backgroundView
+                    backgroundView = backgroundView,
+                    textViews = listOf(textViewBlurb, textViewRating),
+                    actionButtons = listOf(buttonSave, buttonFetch)
                 )
 
                 buttonSave.isEnabled = true
-                Toast.makeText(this@EntryActivity, "Details fetched successfully!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this@EntryActivity,
+                    "Details fetched successfully!",
+                    Toast.LENGTH_SHORT
+                ).show()
 
             } catch (e: Exception) {
                 textViewBlurb.text = "Error fetching details: ${e.message}"
                 Log.e("BookSearch", "API call failed", e)
-                Toast.makeText(this@EntryActivity, "Error fetching details.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@EntryActivity, "Error fetching details.", Toast.LENGTH_LONG)
+                    .show()
                 buttonSave.isEnabled = false
             } finally {
                 buttonFetch.isEnabled = true
             }
+        }
+    }
+
+
+
+    private suspend fun fetchBookDataWithHighResCovers(title: String, author: String): GoogleBookData {
+        return withContext(Dispatchers.IO) {
+            var bestData = GoogleBookData()
+
+            try {
+                val query = "intitle:${title}+inauthor:${author}"
+                val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+                // Increase maxResults to 5 so we can find the best edition
+//                val url = URL("https://www.googleapis.com/books/v1/volumes?q=$encodedQuery&maxResults=9&orderBy=relevance")
+                val url = URL("https://www.googleapis.com/books/v1/volumes?q=$encodedQuery&orderBy=newest&printType=books&maxResults=5")
+                val connection = url.openConnection() as HttpURLConnection
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(response)
+
+                if (json.has("items")) {
+                    val items = json.getJSONArray("items")
+                    var item = items.getJSONObject(0)
+
+                    // Optional: If the first 'newest' result has no image, check the second one
+                    for (i in 0 until items.length()) {
+                        val tempItem = items.getJSONObject(i)
+                        if (tempItem.getJSONObject("volumeInfo").has("imageLinks")) {
+                            item = tempItem
+                            break
+                        }
+                    }
+                    val volumeInfo = item.getJSONObject("volumeInfo")
+                    val currentRating = volumeInfo.optDouble("averageRating", 0.0)
+                    val imageLinks = volumeInfo.optJSONObject("imageLinks")
+                    val thumb = imageLinks?.optString("thumbnail")?.replace("http://", "https://") ?: ""
+                    val highResUrl = if (thumb.isNotEmpty()) "$thumb&fife=w800" else ""
+
+                    // Extract ISBN-13
+                    var isbn = ""
+                    val identifiers = volumeInfo.optJSONArray("industryIdentifiers")
+                    identifiers?.let {
+                        for (j in 0 until it.length()) {
+                            val id = it.getJSONObject(j)
+                            if (id.getString("type").contains("ISBN_13")) {
+                                isbn = id.getString("identifier")
+                                break
+                            }
+                        }
+                    }
+                    bestData = GoogleBookData(
+                        coverUrl = thumb,
+                        highResCoverUrl = highResUrl,
+                        averageRating = currentRating,
+                        ratingsCount = volumeInfo.optInt("ratingsCount", 0),
+                        publishYear = volumeInfo.optString("publishedDate", "").take(4),
+                        source = "Google Books",
+                        isbn = isbn
+                    )
+
+
+                    /// ****************************************
+
+                    // LOOP through results to find the edition with the best metadata
+                 /*   for (i in 0 until items.length()) {
+                        val item = items.getJSONObject(i)
+                        val volumeInfo = item.optJSONObject("volumeInfo") ?: continue
+
+                        val currentRating = volumeInfo.optDouble("averageRating", 0.0)
+                        val imageLinks = volumeInfo.optJSONObject("imageLinks")
+                        val hasCover = imageLinks != null && imageLinks.has("thumbnail")
+
+                        // Priority: If this edition has a rating AND a cover, it's our winner
+                        if (currentRating > 1 && hasCover) {
+                            val thumb = imageLinks?.optString("thumbnail")?.replace("http://", "https://") ?: ""
+                            val highResUrl = if (thumb.isNotEmpty()) "$thumb&fife=w800" else ""
+
+                            // Extract ISBN-13
+                            var isbn = ""
+                            val identifiers = volumeInfo.optJSONArray("industryIdentifiers")
+                            identifiers?.let {
+                                for (j in 0 until it.length()) {
+                                    val id = it.getJSONObject(j)
+                                    if (id.getString("type").contains("ISBN_13")) {
+                                        isbn = id.getString("identifier")
+                                        break
+                                    }
+                                }
+                            }
+
+                            // Update bestData if this one is better than what we have
+                            // (i.e., it has a rating or we haven't found a cover yet)
+                            if (currentRating > bestData.averageRating || (bestData.highResCoverUrl.isEmpty() && hasCover)) {
+                                bestData = GoogleBookData(
+                                    coverUrl = thumb,
+                                    highResCoverUrl = highResUrl,
+                                    averageRating = currentRating,
+                                    ratingsCount = volumeInfo.optInt("ratingsCount", 0),
+                                    publishYear = volumeInfo.optString("publishedDate", "").take(4),
+                                    source = "Google Books",
+                                    isbn = isbn
+                                )
+                            }
+                        }
+
+                        // If we found a "Perfect" result (Rating > 0 and Cover exists), stop looking
+                        if (bestData.averageRating > 0 && bestData.highResCoverUrl.isNotEmpty()) break
+                    }*/
+
+
+
+
+                }
+            } catch (e: Exception) {
+                Log.e("BookSearch", "Google API fail: ${e.message}")
+            }
+
+            // Final Safety Check: If Google gave us no cover, use Open Library
+            if (bestData.highResCoverUrl.isEmpty() && bestData.isbn.isNotEmpty()) {
+                val olUrl = "https://covers.openlibrary.org/b/isbn/${bestData.isbn}-L.jpg?default=false"
+                bestData = bestData.copy(highResCoverUrl = olUrl, source = "Open Library")
+            }
+
+            bestData
         }
     }
 
@@ -540,7 +688,7 @@ class EntryActivity : AppCompatActivity() {
     }
     */
 
-    private fun fetchBookData(title: String, author: String): GoogleBookData {
+    /*private fun fetchBookData(title: String, author: String): GoogleBookData {
         var bookData = GoogleBookData()
 
         // Google Books API - Primary source
@@ -566,9 +714,11 @@ class EntryActivity : AppCompatActivity() {
                     var coverUrl = ""
                     if (volumeInfo.has("imageLinks")) {
                         val imageLinks = volumeInfo.getJSONObject("imageLinks")
-                        coverUrl = imageLinks.optString("thumbnail", "").replace("http://", "https://")
+                        coverUrl =
+                            imageLinks.optString("thumbnail", "").replace("http://", "https://")
                         if (coverUrl.isEmpty()) {
-                            coverUrl = imageLinks.optString("smallThumbnail", "").replace("http://", "https://")
+                            coverUrl = imageLinks.optString("smallThumbnail", "")
+                                .replace("http://", "https://")
                         }
                     }
 
@@ -609,7 +759,9 @@ class EntryActivity : AppCompatActivity() {
                     val responseBody = openConn.inputStream.bufferedReader().use { it.readText() }
                     val jsonResponse = JSONObject(responseBody)
 
-                    if (jsonResponse.has("docs") && jsonResponse.getJSONArray("docs").length() > 0) {
+                    if (jsonResponse.has("docs") && jsonResponse.getJSONArray("docs")
+                            .length() > 0
+                    ) {
                         val doc = jsonResponse.getJSONArray("docs").getJSONObject(0)
 
                         // Cover
@@ -639,7 +791,7 @@ class EntryActivity : AppCompatActivity() {
         }
 
         return bookData
-    }
+    }*/
 
     private suspend fun analyzeEmotion(blurb: String): Map<String, Double> {
         val apiUrl = "https://emotion-api-bst1.onrender.com/analyze"
@@ -677,7 +829,7 @@ class EntryActivity : AppCompatActivity() {
         return emotions
     }
 
-    private fun saveBookEntry() {
+    /*private fun saveBookEntry() {
         val author = editTextAuthor.text.toString().trim()
         val title = editTextBookTitle.text.toString().trim()
 
@@ -710,35 +862,40 @@ class EntryActivity : AppCompatActivity() {
                 Log.w("Firestore", "Error adding document", e)
                 Toast.makeText(this, "Error saving data: ${e.message}", Toast.LENGTH_LONG).show()
             }
+    }*/
+
+
+    // Helper function to format large rating counts
+    private fun formatRatingsCount(count: Int): String {
+        return when {
+            count >= 1000 -> "${count / 1000}k+"
+            else -> count.toString()
+        }
     }
+
 }
 
-// Helper function to format large rating counts
-private fun formatRatingsCount(count: Int): String {
-    return when {
-        count >= 1_000_000 -> String.format(Locale.getDefault(), "%.1fM", count / 1_000_000.0)
-        count >= 1_000 -> String.format(Locale.getDefault(), "%.1fK", count / 1_000.0)
-        else -> count.toString()
-    }
-}
 
-data class BookDetails(
-    val blurb: String,
-    val coverUrl: String,
-    val categories: List<String> = emptyList(),
-    val subjects: List<String> = emptyList(),
-    val genres: List<String> = emptyList(),
-    val themes: List<String> = emptyList(),
-    val motif: List<String> = emptyList(),
-    val time_period: List<String> = emptyList(),
-    val location: List<String> = emptyList()
-)
+    data class BookDetails(
+        val blurb: String,
+        val coverUrl: String,
+        val categories: List<String> = emptyList(),
+        val subjects: List<String> = emptyList(),
+        val genres: List<String> = emptyList(),
+        val themes: List<String> = emptyList(),
+        val motif: List<String> = emptyList(),
+        val time_period: List<String> = emptyList(),
+        val location: List<String> = emptyList()
+    )
 
 
-// Data class to hold book information
-data class GoogleBookData(
-    val coverUrl: String = "",
-    val averageRating: Double = 0.0,
-    val ratingsCount: Int = 0,
-    val source: String = "" // "google" or "openlibrary"
-)
+    // Data class to hold book information
+    data class GoogleBookData(
+        val coverUrl: String = "",
+        val highResCoverUrl: String = "", // For highest quality available
+        val averageRating: Double = 0.0,
+        val ratingsCount: Int = 0,
+        val source: String = "", // "google", "openlibrary", "goodreads"
+        val publishYear: String = "", // To help choose most recent edition
+        val isbn: String = "" // To fetch from multiple sources
+    )
