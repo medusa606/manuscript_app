@@ -1,8 +1,8 @@
-# Manuscript
+# Music Supervisor *(working title)*
 
 **A film-score for whatever you're reading.**
 
-Manuscript is an Android app (internal package name `musicsupervisor`) that picks music to match the
+Music Supervisor is an Android app that picks music to match the
 *emotional content* of the book you're reading. As the story moves through chapters and the drama
 rises or falls, the soundtrack shifts with it. The longer-term plan is to give major characters their
 own **leitmotifs**, recurring musical themes that come back whenever they appear.
@@ -11,7 +11,7 @@ own **leitmotifs**, recurring musical themes that come back whenever they appear
 <!-- ![Book Details Entry screen](docs/entry_screen.png) -->
 
 The current build has a **Book Details Entry** screen: pick an author and title, and the app pulls
-the cover, rating, blurb, genres, themes and motifs from a 15k-book catalogue.
+the cover, rating, blurb, genres, themes and motifs from an LLM-built book catalogue.
 
 ---
 
@@ -48,33 +48,33 @@ affect:
 
 ## The pieces and how they fit together
 
-The project is split across three repositories plus one large data file:
+The project is split across four repositories:
 
 | # | Component | Repo | Language | What it does |
 |---|-----------|------|----------|--------------|
-| ① | **Book catalogue** | *(this repo)* `app/src/main/assets/items.json` | JSON (LLM-generated) | 15,374 books with genres, themes, motif, setting, tags and blurb |
+| ① | **db_builder** | [medusa606/db_builder](https://github.com/medusa606/db_builder) | Python | Builds the book catalogue: public book lists → LLM → genres, themes, motif, setting, tags, blurb (~52k books). A 15k snapshot ships in this repo as `app/src/main/assets/items.json` |
 | ② | **emotion-reader** | [medusa606/emotion-reader](https://github.com/medusa606/emotion-reader) | Python | Book text → per-sentence emotions → VA curve |
 | ③ | **music_mood** | [medusa606/music_mood](https://github.com/medusa606/music_mood) | Python | Spotify playlists → audio previews → VA per track (SQLite) |
 | ④ | **manuscript_app** | *(this repo)* | Kotlin / Android | The reader-facing app |
 
 ```text
  ┌────────────────────────────┐  ┌────────────────────────────┐  ┌────────────────────────────┐
- │ [1] BOOK CATALOGUE         │  │ [2] emotion-reader         │  │ [3] music_mood             │
+ │ [1] db_builder             │  │ [2] emotion-reader         │  │ [3] music_mood             │
  │  what is this book?        │  │  how does the text feel?   │  │  how does the music feel?  │
  │                            │  │                            │  │                            │
- │  book lists (Top-100s,     │  │  Project Gutenberg .txt    │  │  Spotify playlists         │
- │  BISG categories)          │  │            │               │  │  horror · space opera ·    │
- │            │               │  │            ▼               │  │  spy thriller · …          │
- │            ▼               │  │  NLTK sentence split       │  │            │ ISRC          │
- │  LLM prompt per book       │  │            ▼               │  │            ▼               │
- │  Gemini 2.5 Flash-Lite     │  │  GoEmotions (28 labels)    │  │  Deezer 30 s previews      │
- │  Ollama gemma3 (local)     │  │   + Hartmann (7) ensemble  │  │            ▼               │
- │            │               │  │            ▼               │  │  Essentia: BPM, key/mode,  │
+ │  public book datasets      │  │  Project Gutenberg .txt    │  │  Spotify playlists         │
+ │  (Goodreads, Kindle,       │  │            │               │  │  horror · space opera ·    │
+ │  Amazon, classics, Top-100)│  │            ▼               │  │  spy thriller · …          │
+ │            │               │  │  NLTK sentence split       │  │            │ ISRC          │
+ │            ▼               │  │            ▼               │  │            ▼               │
+ │  one JSON prompt per book  │  │  GoEmotions (28 labels)    │  │  Deezer 30 s previews      │
+ │  Gemini 2.5 Flash-Lite +   │  │   + Hartmann (7) ensemble  │  │            ▼               │
+ │  local Ollama gemma3:12b   │  │            ▼               │  │  Essentia: BPM, key/mode,  │
  │            ▼               │  │  neutral suppression       │  │  RMS energy, brightness    │
- │  items.json                │  │            ▼               │  │            ▼               │
- │  15,374 books              │  │  label → V,A (circumplex)  │  │  heuristic V, A  (0 … 1)   │
- │  genre · themes · motif ·  │  │  per sentence → per page   │  │            ▼               │
- │  setting · tags · blurb    │  │  V, A  (−1 … +1)           │  │  track_features.db         │
+ │  ~52k books: genre, themes,│  │            ▼               │  │            ▼               │
+ │  motif, setting, tags,     │  │  label → V,A (circumplex)  │  │  heuristic V, A  (0 … 1)   │
+ │  blurb  → items.json       │  │  per sentence → per page   │  │            ▼               │
+ │  (15k snapshot in the app) │  │  V, A  (−1 … +1)           │  │  track_features.db         │
  │                            │  │  CSV + JSON + timeline PNG │  │  1,174 tracks analysed     │
  └─────────────┬──────────────┘  └─────────────┬──────────────┘  └─────────────┬──────────────┘
                │ bundled asset                 ┆ not wired in yet              ┆ not wired in yet
@@ -108,14 +108,16 @@ cat docs/architecture.ansi
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Book catalogue (`items.json`) | ✅ 15,374 books | 14,766 from Gemini 2.5 Flash-Lite, 608 from local Ollama (gemma3 12b/4b). The generator script isn't in any of these repos yet. |
-| Book entry screen | ✅ Working | Autocomplete, cover/rating fetch, metadata display (see screenshot). |
+| Book catalogue (db_builder) | ✅ ~52k books | 14,766 from Gemini 2.5 Flash-Lite, ~39k from local Ollama gemma3:12b. |
+| Catalogue in the app (`items.json`) | ⚠️ Out of date | A 15,374-entry snapshot. db_builder now has ~52k unique books, so the asset needs refreshing (and it'll grow to ~60 MB, so consider shipping a pre-built Room DB instead of JSON). |
+| Book entry screen | ✅ Working | Autocomplete, cover/rating fetch, metadata display. |
 | Save book to Firestore | ⏸ Stubbed | `saveBookEntry()` is commented out and the Save button is disabled. |
 | Spotify login (PKCE) | ⏸ Stubbed | `LoginActivity.kt` and `PkceUtils.kt` are written but commented out. |
 | Book emotion analysis | ✅ Offline, Python | Dracula, Frankenstein and Great Expectations analysed (see emotion-reader). |
 | Music VA database | ✅ Offline, Python | 5 playlists, 1,190 tracks, 1,174 with VA features. |
 | Book VA → music matching | ❌ Not started | This is the core feature that ties ②, ③ and ④ together. |
 | Leitmotifs | ❌ Idea stage | Needs character detection (NER) per sentence. |
+| Remote emotion API | ❓ Unknown | `analyzeEmotion()` calls `https://emotion-api-bst1.onrender.com/analyze`, but nothing calls `analyzeEmotion()`. Probably an early experiment; safe to remove if the service is gone. |
 
 ### Integration gaps to close
 
@@ -123,8 +125,14 @@ cat docs/architecture.ansi
    **0…1**. One side needs rescaling before nearest-neighbour matching (e.g. `v_music * 2 - 1`).
 2. **No shared data format yet.** The app has no way to load a book's page-level VA curve or the
    track database. A small exported JSON/SQLite bundle per book, plus the track table, would do it.
-3. **Where does the book text come from?** emotion-reader only reads public-domain Gutenberg texts.
-   Modern titles in the catalogue would need the user's own ebook or a pre-computed curve.
+3. **Book text comes from the reader.** The plan is for readers to supply their own ebook.
+   emotion-reader currently only fetches public-domain Gutenberg texts, so it needs an ebook
+   (EPUB) import path. The models (~500 MB, GPU-friendly) are too heavy to run comfortably on a
+   phone, so the options are:
+   * **Server-side:** upload the text, analyse it, and return only the VA curve.
+   * **On-device:** use a smaller distilled or quantised model.
+   * **Shared cache:** store each finished curve against the book's ISBN, so later readers of the
+     same book download a few KB instead of re-analysing. The curve contains no text from the book.
 4. **Playback.** Spotify's Web API no longer exposes audio features (deprecated Nov 2024), which is
    why music_mood computes its own. Actual playback would go through the Spotify App Remote SDK.
 
@@ -212,7 +220,7 @@ On first launch of the entry screen, `items.json` is imported into Room. That ta
 |------|------------|
 | `TODOS.txt` | UI to-do list for the entry screen |
 | `example_schema.txt` | Target JSON schema for a catalogue record |
-| `Top100_2020` | "Author, Title" seed list used to build the catalogue |
+| `Top100_2020` | "Author, Title" seed list, the first input to db_builder |
 | `BISG_book_categories.txt` | BISG subject headings (reference list of book categories) |
 | `Shortcuts` | Android Studio keyboard shortcuts cheat-sheet |
 | `IconKitchen-Output.zip` | Source for the launcher icons |
@@ -228,9 +236,10 @@ On first launch of the entry screen, `items.json` is imported into Room. That ta
 - [ ] Nearest-VA track selection, with hysteresis so the music doesn't flip every page
 - [ ] Chapter and drama-spike detection to choose when to change track
 - [ ] Character detection, then leitmotif assignment
-- [ ] Commit the catalogue-generation script alongside `items.json`
+- [ ] Refresh `items.json` from db_builder (~52k books), ideally as a pre-built Room database
 
 ## Related repositories
 
+* [**db_builder**](https://github.com/medusa606/db_builder): builds the LLM book-metadata catalogue
 * [**emotion-reader**](https://github.com/medusa606/emotion-reader): emotion and VA analysis of book text
 * [**music_mood**](https://github.com/medusa606/music_mood): VA analysis of soundtrack music
