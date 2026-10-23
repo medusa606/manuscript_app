@@ -1,4 +1,4 @@
-# Music Supervisor *(working title)*
+# Music Supervisor
 
 **A film-score for whatever you're reading.**
 
