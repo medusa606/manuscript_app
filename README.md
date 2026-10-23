@@ -7,11 +7,13 @@ Music Supervisor is an Android app that picks music to match the
 rises or falls, the soundtrack shifts with it. The longer-term plan is to give major characters their
 own **leitmotifs**, recurring musical themes that come back whenever they appear.
 
-<!-- TODO: add an emulator screenshot of the Book Details Entry screen, e.g. docs/entry_screen.png -->
-<!-- ![Book Details Entry screen](docs/entry_screen.png) -->
+<p align="center">
+  <img src="docs/entry_screen.jpg" alt="Book Details Entry screen showing Rendezvous with Rama" width="300">
+</p>
 
-The current build has a **Book Details Entry** screen: pick an author and title, and the app pulls
-the cover, rating, blurb, genres, themes and motifs from an LLM-built book catalogue.
+The current build has a **Book Details Entry** screen: start typing an author and title, and
+predictive matching against a **local SQLite database** suggests books as you type. Fetch Details
+then pulls the cover, blurb, genres, themes, motifs and setting from the LLM-built book catalogue.
 
 ---
 
@@ -144,7 +146,7 @@ cat docs/architecture.ansi
 
 * Kotlin, `minSdk 24`, `targetSdk 36`
 * Views/XML for the current screens, with Jetpack Compose set up (`ui/search`) for future screens
-* **Room** with an FTS table for fast author/title search over `items.json`
+* **Room (SQLite)**: a local, on-device database built from `items.json`, with an FTS4 full-text index for predictive search
 * **Coil** for image loading, **AndroidX Palette** for cover-matched background colours
 * **Firebase** Auth (anonymous) and Firestore
 * Google Books API and Open Library for covers, ratings and ISBNs (no API key needed)
@@ -156,6 +158,25 @@ cat docs/architecture.ansi
 | `MainActivity` | Launcher with three buttons (A → `SecondActivity`, B → `EntryActivity`, C unused) |
 | `SecondActivity` | Interim menu leading to book entry |
 | `EntryActivity` (`book_entry_activity.kt`) | **Book Details Entry**, the main screen in the screenshot |
+
+### Local database and predictive search
+
+Book lookup works offline. Nothing is sent to a server while you type.
+
+1. **Import.** On first launch, `items.json` is parsed (`JsonImporter`) and written into a local
+   **SQLite** database through Room (`AppDatabase`, table `items`), with a matching full-text
+   index (`items_fts`).
+2. **Author: predictive matching.** From the first character typed, `ItemDao.searchAuthors` runs
+   an FTS prefix query (`MATCH 'query*'`). The dropdown offers matching authors, e.g. typing `arth c`
+   suggests *Arthur C. Clarke*.
+3. **Title, scoped to that author.** Once an author is picked, title suggestions come only from
+   that author's books (`searchTitlesByAuthor`, substring `LIKE` match), so the list stays short
+   and relevant.
+4. **Fuzzy ranking (experimental).** `SearchRepository.search` re-orders FTS candidates by
+   Levenshtein edit distance to the query, so near-misses and typos still surface the right book.
+   It's currently used by the Compose search screen in `ui/search`, not yet by the entry screen.
+5. **Exact fetch.** *Fetch Details* loads the chosen record by exact title and author
+   (`getItemByTitleAndAuthor`), then fetches the cover and rating online.
 | `LoginActivity` | Spotify PKCE login (commented out) |
 
 ### Code map
