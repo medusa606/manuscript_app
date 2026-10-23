@@ -1,0 +1,41 @@
+
+  [1m[97mMANUSCRIPT[0m  [2m·[0m  a film-score for whatever you're reading
+  [2mbook text ──► emotion (Valence/Arousal) ◄── music audio[0m
+
+[33m ┌────────────────────────────┐ [0m[35m ┌────────────────────────────┐ [0m[36m ┌────────────────────────────┐[0m
+[33m │ [1m[1] BOOK CATALOGUE[0m[33m         │ [0m[35m │ [1m[2] emotion-reader[0m[35m         │ [0m[36m │ [1m[3] music_mood[0m[36m             │[0m
+[33m │  what is this book?        │ [0m[35m │  how does the text feel?   │ [0m[36m │  how does the music feel?  │[0m
+[33m │                            │ [0m[35m │                            │ [0m[36m │                            │[0m
+[33m │  book lists (Top-100s,     │ [0m[35m │  Project Gutenberg .txt    │ [0m[36m │  Spotify playlists         │[0m
+[33m │  BISG categories)          │ [0m[35m │            │               │ [0m[36m │  horror · space opera ·    │[0m
+[33m │            │               │ [0m[35m │            ▼               │ [0m[36m │  spy thriller · …          │[0m
+[33m │            ▼               │ [0m[35m │  NLTK sentence split       │ [0m[36m │            │ ISRC          │[0m
+[33m │  LLM prompt per book       │ [0m[35m │            ▼               │ [0m[36m │            ▼               │[0m
+[33m │  Gemini 2.5 Flash-Lite     │ [0m[35m │  GoEmotions (28 labels)    │ [0m[36m │  Deezer 30 s previews      │[0m
+[33m │  Ollama gemma3 (local)     │ [0m[35m │   + Hartmann (7) ensemble  │ [0m[36m │            ▼               │[0m
+[33m │            │               │ [0m[35m │            ▼               │ [0m[36m │  Essentia: BPM, key/mode,  │[0m
+[33m │            ▼               │ [0m[35m │  neutral suppression       │ [0m[36m │  RMS energy, brightness    │[0m
+[33m │  items.json                │ [0m[35m │            ▼               │ [0m[36m │            ▼               │[0m
+[33m │  15,374 books              │ [0m[35m │  label → V,A (circumplex)  │ [0m[36m │  heuristic V, A  (0 … 1)   │[0m
+[33m │  genre · themes · motif ·  │ [0m[35m │  per sentence → per page   │ [0m[36m │            ▼               │[0m
+[33m │  setting · tags · blurb    │ [0m[35m │  V, A  (−1 … +1)           │ [0m[36m │  track_features.db         │[0m
+[33m │                            │ [0m[35m │  CSV + JSON + timeline PNG │ [0m[36m │  1,174 tracks analysed     │[0m
+[33m └─────────────┬──────────────┘ [0m[35m └─────────────┬──────────────┘ [0m[36m └─────────────┬──────────────┘[0m
+               │ [33mbundled asset[0m                 [2m[31m┆[0m [2mnot wired in yet[0m              [2m[31m┆[0m [2mnot wired in yet[0m
+               ▼                               ▼                               ▼
+[32m ┌────────────────────────────────────────────────────────────────────────────────────────────┐[0m
+[32m │ [1m[4] manuscript_app[0m[32m  (Android · Kotlin)                                                     │[0m
+[32m │                                                                                            │[0m
+[32m │  [1mWORKING TODAY[0m[32m                                                                             │[0m
+[32m │   Author ─► Title autocomplete (Room + FTS, from items.json)                               │[0m
+[32m │   ─► book card: high-res cover (Google Books → Open Library), rating, blurb, genres,       │[0m
+[32m │      themes, motifs; background tint pulled from the cover palette                         │[0m
+[32m │   Firebase anonymous auth (Firestore save is stubbed out)                                  │[0m
+[32m │                                                                                            │[0m
+[32m │  [1m[31mPLANNED[0m[32m                                                                                   │[0m
+[32m │[0m[2m   reading position ─► page VA from [2] ─► nearest-VA track from [3] ─► Spotify playback    [0m[32m│[0m
+[32m │[0m[2m   chapter / drama-spike detection ─► track changes  ·  character leitmotifs                [0m[32m│[0m
+[32m └────────────────────────────────────────────────────────────────────────────────────────────┘[0m
+[32m[0m[2m[0m[32m[0m
+[32m  [0m[2m ──►  data flows today          ┆  planned / not yet connecte[0m[32md[0m
+
