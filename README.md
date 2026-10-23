@@ -8,7 +8,9 @@ rises or falls, the soundtrack shifts with it. The longer-term plan is to give m
 own **leitmotifs**, recurring musical themes that come back whenever they appear.
 
 <p align="center">
-  <img src="docs/entry_screen.jpg" alt="Book Details Entry screen showing Rendezvous with Rama" width="300">
+  <img src="docs/entry_screen.jpg" alt="Book Details Entry screen showing Rendezvous with Rama" width="280">
+  &nbsp;&nbsp;
+  <img src="docs/entry_screen_2.jpg" alt="Book Details Entry screen showing The Vanishing Half" width="280">
 </p>
 
 The current build has a **Book Details Entry** screen: start typing an author and title, and
